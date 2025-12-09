@@ -3,6 +3,344 @@ import { Admin } from './components/Admin'
 
 type GameScreen = 'landing' | 'game'
 
+// Trail particle type
+type TrailParticle = {
+  id: number
+  x: number
+  y: number
+  spawnTime: number
+  isExplosion?: boolean
+  angle?: number
+}
+
+// Single firefly with trail that follows its path and is attracted to mouse
+function Firefly({
+  direction,
+  startY,
+  duration,
+  mousePosRef,
+  isMouseInWindowRef,
+  onCaught
+}: {
+  direction: 'left' | 'right'
+  startY: number
+  duration: number
+  mousePosRef: React.MutableRefObject<{ x: number, y: number }>
+  isMouseInWindowRef: React.MutableRefObject<boolean>
+  onCaught: () => void
+}) {
+  const [particles, setParticles] = useState<TrailParticle[]>([])
+  const [isVisible, setIsVisible] = useState(true)
+  const [isFading, setIsFading] = useState(false)
+  const [opacity, setOpacity] = useState(1)
+  const [renderTick, setRenderTick] = useState(0)
+  const posRef = useRef({
+    x: direction === 'left' ? -20 : (typeof window !== 'undefined' ? window.innerWidth + 20 : 1000),
+    y: (startY / 100) * (typeof window !== 'undefined' ? window.innerHeight : 800)
+  })
+  const particleIdRef = useRef(0)
+  const particleLifetime = 2500
+  const explosionLifetime = 1500
+  const wobbleRef = useRef(0)
+  const movingRightRef = useRef(direction === 'left')
+
+  useEffect(() => {
+    if (!isVisible) return
+
+    // Reduced speed by 2x for slower, floaty movement
+    const speed = (window.innerWidth + 40) / (duration * 60) * 0.5
+    let animationId: number
+
+    const animate = () => {
+      wobbleRef.current += 0.05
+      const wobbleY = Math.sin(wobbleRef.current) * 18
+
+      const prev = posRef.current
+      const mousePos = mousePosRef.current
+      const isMouseInWindow = isMouseInWindowRef.current
+      let newX = prev.x
+      let newY = prev.y
+
+      if (isMouseInWindow) {
+        const dx = mousePos.x - prev.x
+        const dy = mousePos.y - prev.y
+        const dist = Math.sqrt(dx * dx + dy * dy)
+
+        // Check if caught by mouse
+        if (dist < 15 && !isFading) {
+          // Spawn explosion particles
+          const explosionParticles: TrailParticle[] = []
+          for (let i = 0; i < 12; i++) {
+            explosionParticles.push({
+              id: particleIdRef.current++,
+              x: prev.x,
+              y: prev.y,
+              spawnTime: Date.now(),
+              isExplosion: true,
+              angle: (i / 12) * Math.PI * 2,
+            })
+          }
+          setParticles(p => [...p, ...explosionParticles])
+
+          // Start fade out animation instead of instant disappear
+          setIsFading(true)
+          let fadeOpacity = 1
+          const fadeInterval = setInterval(() => {
+            fadeOpacity -= 0.05
+            setOpacity(Math.max(0, fadeOpacity))
+            if (fadeOpacity <= 0) {
+              clearInterval(fadeInterval)
+              setIsVisible(false)
+              onCaught()
+            }
+          }, 50)
+          return
+        }
+
+        if (dist > 5) {
+          const attractSpeed = 1.5 // Reduced from 3 for slower, floaty movement
+          newX = prev.x + (dx / dist) * attractSpeed
+          newY = prev.y + (dy / dist) * attractSpeed + wobbleY * 0.1
+          movingRightRef.current = dx > 0
+        }
+      } else {
+        if (direction === 'left') {
+          newX = prev.x + speed
+          movingRightRef.current = true
+        } else {
+          newX = prev.x - speed
+          movingRightRef.current = false
+        }
+        newY = (startY / 100) * window.innerHeight + wobbleY
+      }
+
+      posRef.current = { x: newX, y: newY }
+      setRenderTick(t => t + 1)
+
+      animationId = requestAnimationFrame(animate)
+    }
+
+    animationId = requestAnimationFrame(animate)
+
+    // Spawn trail particles - increased density (25ms instead of 50ms)
+    const spawnInterval = setInterval(() => {
+      if (isVisible && !isFading) {
+        setParticles(prev => [...prev, {
+          id: particleIdRef.current++,
+          x: posRef.current.x,
+          y: posRef.current.y,
+          spawnTime: Date.now(),
+        }])
+      }
+    }, 25)
+
+    // Clean up old particles
+    const cleanupInterval = setInterval(() => {
+      const now = Date.now()
+      setParticles(prev => prev.filter(p => {
+        const lifetime = p.isExplosion ? explosionLifetime : particleLifetime
+        return now - p.spawnTime < lifetime
+      }))
+    }, 100)
+
+    return () => {
+      cancelAnimationFrame(animationId)
+      clearInterval(spawnInterval)
+      clearInterval(cleanupInterval)
+    }
+  }, [direction, duration, startY, isVisible, isFading, onCaught, mousePosRef, isMouseInWindowRef])
+
+  const pos = posRef.current
+  const movingRight = movingRightRef.current
+
+  return (
+    <>
+      {/* Trail and explosion particles */}
+      {particles.map(particle => {
+        const age = Date.now() - particle.spawnTime
+
+        if (particle.isExplosion) {
+          // Explosion particle
+          const progress = age / explosionLifetime
+          const opacity = Math.max(0, 1 * (1 - progress))
+          const dist = progress * 60
+          const x = particle.x + Math.cos(particle.angle!) * dist
+          const y = particle.y + Math.sin(particle.angle!) * dist
+          const size = Math.max(1, 4 * (1 - progress * 0.7))
+          const blur = progress * 3
+
+          return (
+            <div
+              key={particle.id}
+              style={{
+                position: 'fixed',
+                left: x,
+                top: y,
+                width: `${size}px`,
+                height: `${size}px`,
+                borderRadius: '50%',
+                backgroundColor: `rgba(255, 255, 100, ${opacity})`,
+                boxShadow: `0 0 ${8 - progress * 6}px ${4 - progress * 3}px rgba(255, 255, 100, ${opacity * 0.8})`,
+                filter: `blur(${blur}px)`,
+                pointerEvents: 'none',
+                zIndex: 2,
+                transform: 'translate(-50%, -50%)',
+              }}
+            />
+          )
+        }
+
+        // Normal trail particle
+        const progress = age / particleLifetime
+        const opacity = Math.max(0, 0.6 * (1 - progress))
+        const blur = 1 + progress * 4
+        const size = Math.max(1, 3 * (1 - progress * 0.5))
+        const drift = movingRight ? -progress * 20 : progress * 20
+        const verticalDrift = Math.sin(particle.id * 0.5) * progress * 8
+
+        return (
+          <div
+            key={particle.id}
+            style={{
+              position: 'fixed',
+              left: particle.x + drift,
+              top: particle.y + verticalDrift,
+              width: `${size}px`,
+              height: `${size}px`,
+              borderRadius: '50%',
+              backgroundColor: `rgba(255, 255, ${150 + progress * 50}, ${opacity})`,
+              filter: `blur(${blur}px)`,
+              pointerEvents: 'none',
+              zIndex: 1,
+              transform: 'translate(-50%, -50%)',
+            }}
+          />
+        )
+      })}
+
+      {/* Firefly */}
+      {isVisible && (
+        <div
+          style={{
+            position: 'fixed',
+            left: pos.x,
+            top: pos.y,
+            transform: 'translate(-50%, -50%)',
+            pointerEvents: 'none',
+            zIndex: 1,
+            opacity: opacity,
+            transition: 'opacity 0.1s ease-out',
+          }}
+        >
+          <div
+            style={{
+              width: '4px',
+              height: '4px',
+              borderRadius: '50%',
+              backgroundColor: 'rgba(255, 255, 150, 1)',
+              animation: isFading ? 'none' : 'firefly-glow 1.5s ease-in-out infinite',
+              boxShadow: `0 0 ${6 * opacity}px ${3 * opacity}px rgba(255, 255, 100, ${0.6 * opacity})`,
+            }}
+          />
+        </div>
+      )}
+    </>
+  )
+}
+
+// Lightning bug manager component
+function LightningBug() {
+  const [bugs, setBugs] = useState<Array<{
+    id: number
+    direction: 'left' | 'right'
+    startY: number
+    duration: number
+  }>>([])
+  const mousePosRef = useRef({ x: 0, y: 0 })
+  const isMouseInWindowRef = useRef(false)
+
+  // Track mouse position with refs (no re-renders)
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      mousePosRef.current = { x: e.clientX, y: e.clientY }
+    }
+
+    const handleMouseEnter = () => { isMouseInWindowRef.current = true }
+    const handleMouseLeave = () => { isMouseInWindowRef.current = false }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseenter', handleMouseEnter)
+    document.addEventListener('mouseleave', handleMouseLeave)
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseenter', handleMouseEnter)
+      document.removeEventListener('mouseleave', handleMouseLeave)
+    }
+  }, [])
+
+  useEffect(() => {
+    let bugId = 0
+
+    const spawnBug = () => {
+      const newBug = {
+        id: bugId++,
+        direction: Math.random() > 0.5 ? 'left' as const : 'right' as const,
+        startY: 20 + Math.random() * 50,
+        duration: 25 + Math.random() * 15, // Increased duration since they move slower now
+      }
+
+      setBugs(prev => [...prev, newBug])
+
+      setTimeout(() => {
+        setBugs(prev => prev.filter(b => b.id !== newBug.id))
+      }, newBug.duration * 1000 + 500)
+    }
+
+    // Spawn more frequently (every 3-6 seconds instead of 8-15)
+    const initialTimeout = setTimeout(spawnBug, 1000)
+    const spawnInterval = 3000 + Math.random() * 3000
+    const interval = setInterval(() => {
+      spawnBug()
+    }, spawnInterval)
+
+    return () => {
+      clearTimeout(initialTimeout)
+      clearInterval(interval)
+    }
+  }, [])
+
+  const removeBug = (id: number) => {
+    setBugs(prev => prev.filter(b => b.id !== id))
+  }
+
+  return (
+    <>
+      <style>{`
+        @keyframes firefly-glow {
+          0%, 100% { opacity: 0.4; box-shadow: 0 0 3px 1px rgba(255, 255, 100, 0.5); }
+          20% { opacity: 1; box-shadow: 0 0 8px 4px rgba(255, 255, 100, 0.9), 0 0 12px 6px rgba(255, 255, 50, 0.5); }
+          35% { opacity: 0.3; box-shadow: 0 0 3px 1px rgba(255, 255, 100, 0.4); }
+          55% { opacity: 1; box-shadow: 0 0 10px 5px rgba(200, 255, 100, 1), 0 0 15px 8px rgba(200, 255, 50, 0.5); }
+          70% { opacity: 0.4; box-shadow: 0 0 3px 1px rgba(255, 255, 100, 0.5); }
+          85% { opacity: 0.9; box-shadow: 0 0 6px 3px rgba(255, 255, 100, 0.8); }
+        }
+      `}</style>
+      {bugs.map(bug => (
+        <Firefly
+          key={bug.id}
+          direction={bug.direction}
+          startY={bug.startY}
+          duration={bug.duration}
+          mousePosRef={mousePosRef}
+          isMouseInWindowRef={isMouseInWindowRef}
+          onCaught={() => removeBug(bug.id)}
+        />
+      ))}
+    </>
+  )
+}
+
 function App() {
   const [showAdmin, setShowAdmin] = useState(false)
   const [currentScreen, setCurrentScreen] = useState<GameScreen>('landing')
@@ -331,6 +669,9 @@ function App() {
         />
       ))}
 
+      {/* Lightning bugs */}
+      <LightningBug />
+
       {/* Ambient glow effect */}
       <div style={{
         position: 'absolute',
@@ -385,7 +726,7 @@ function App() {
         textTransform: 'uppercase',
         textShadow: '0 0 40px rgba(74, 124, 89, 0.3)',
       }}>
-        Terrarium
+        Chillarium
       </h1>
 
       {/* Subtitle */}
@@ -404,6 +745,7 @@ function App() {
       <div style={{
         position: 'relative',
         width: '320px',
+        zIndex: 10,
         height: '380px',
       }}>
         {/* Glass dome */}
@@ -423,6 +765,8 @@ function App() {
             inset -20px -20px 60px rgba(255,255,255,0.02)
           `,
           overflow: 'hidden',
+          backdropFilter: 'blur(3px)',
+          WebkitBackdropFilter: 'blur(3px)',
         }}>
           {/* Glass reflection */}
           <div style={{
