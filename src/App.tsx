@@ -14,9 +14,10 @@ function App() {
         minHeight: '100vh',
         width: '100%',
         backgroundImage: 'url(/bg.png)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
+        backgroundSize: '100% auto',
+        backgroundPosition: 'bottom center',
         backgroundRepeat: 'no-repeat',
+        backgroundColor: '#2d5a3d',
         position: 'relative',
       }}>
         {/* Admin Button */}
