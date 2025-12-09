@@ -9,9 +9,16 @@ export default defineSchema({
     order: v.number(),
   }),
 
+  groups: defineTable({
+    name: v.string(),
+    color: v.optional(v.string()),
+    order: v.number(),
+  }),
+
   creatures: defineTable({
     name: v.string(),
     biomeId: v.optional(v.id("biomes")),
+    groupId: v.optional(v.id("groups")),
     goldValue: v.number(),
     goldPerMinute: v.number(),
     rarity: v.union(

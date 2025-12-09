@@ -28,11 +28,20 @@ interface CreatureRow {
   _id?: Id<'creatures'>
   name: string
   biomeId?: Id<'biomes'>
+  groupId?: Id<'groups'>
   goldValue: number
   goldPerMinute: number
   rarity: Rarity
   imageId?: Id<'_storage'>
   imageUrl?: string
+  isNew?: boolean
+  isDirty?: boolean
+}
+
+interface GroupRow {
+  _id?: Id<'groups'>
+  name: string
+  color?: string
   isNew?: boolean
   isDirty?: boolean
 }
@@ -65,11 +74,18 @@ export function Admin({ onClose }: { onClose: () => void }) {
   const [creatures, setCreatures] = useState<CreatureRow[]>([])
   const [biomes, setBiomes] = useState<BiomeRow[]>([])
   const [decorations, setDecorations] = useState<DecorationRow[]>([])
+  const [groups, setGroups] = useState<GroupRow[]>([])
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [saving, setSaving] = useState(false)
 
   // Lightbox state for viewing full-size images
   const [lightboxImage, setLightboxImage] = useState<{ url: string; name: string } | null>(null)
+
+  // Groups management modal
+  const [showGroupsModal, setShowGroupsModal] = useState(false)
+
+  // Group filter for creatures tab
+  const [selectedGroupFilter, setSelectedGroupFilter] = useState<Id<'groups'> | 'all'>('all')
 
   // Edit mode tracking - stores IDs of rows being edited
   const [editingCreatures, setEditingCreatures] = useState<Set<string>>(new Set())
@@ -85,6 +101,7 @@ export function Admin({ onClose }: { onClose: () => void }) {
   const dbCreatures = useQuery(api.creatures.list)
   const dbBiomes = useQuery(api.biomes.list)
   const dbDecorations = useQuery(api.decorations.list)
+  const dbGroups = useQuery(api.groups.list)
 
   // Mutations
   const createCreature = useMutation(api.creatures.create)
@@ -100,6 +117,10 @@ export function Admin({ onClose }: { onClose: () => void }) {
   const updateDecoration = useMutation(api.decorations.update)
   const deleteDecoration = useMutation(api.decorations.remove)
   const generateDecorationUploadUrl = useMutation(api.decorations.generateUploadUrl)
+
+  const createGroup = useMutation(api.groups.create)
+  const updateGroup = useMutation(api.groups.update)
+  const deleteGroup = useMutation(api.groups.remove)
 
   // Track if we've done initial load
   const [initialized, setInitialized] = useState(false)
@@ -131,6 +152,13 @@ export function Admin({ onClose }: { onClose: () => void }) {
       setDecorations(dbDecorations.map(d => ({ ...d, isDirty: false })))
     }
   }, [dbDecorations, initialized])
+
+  useEffect(() => {
+    if (dbGroups && !initialized) {
+      console.log('[🔄SYNC] Loading groups from database:', dbGroups)
+      setGroups(dbGroups.map(g => ({ ...g, isDirty: false })))
+    }
+  }, [dbGroups, initialized])
 
   const handleAddCreature = () => {
     const newId = `new-${Date.now()}`
@@ -166,9 +194,16 @@ export function Admin({ onClose }: { onClose: () => void }) {
     return creature.isNew || editingCreatures.has(id)
   }
 
-  // Get sorted creatures
+  // Get sorted and filtered creatures
   const getSortedCreatures = (): CreatureRow[] => {
-    return [...creatures].sort((a, b) => {
+    // First filter by group if a group is selected
+    let filtered = creatures
+    if (selectedGroupFilter !== 'all') {
+      filtered = creatures.filter(c => c.groupId === selectedGroupFilter)
+    }
+
+    // Then sort
+    return [...filtered].sort((a, b) => {
       let comparison = 0
       switch (sortField) {
         case 'name':
@@ -270,6 +305,42 @@ export function Admin({ onClose }: { onClose: () => void }) {
     setHasUnsavedChanges(true)
   }
 
+  // Group handlers
+  const handleAddGroup = () => {
+    if (groups.length >= 50) {
+      alert('Maximum of 50 groups allowed')
+      return
+    }
+    setGroups([...groups, {
+      name: '',
+      color: '#4ade80',
+      isNew: true,
+      isDirty: true,
+    }])
+    setHasUnsavedChanges(true)
+  }
+
+  const handleGroupChange = (index: number, field: keyof GroupRow, value: any) => {
+    setGroups(prev => {
+      const updated = [...prev]
+      updated[index] = { ...updated[index], [field]: value, isDirty: true }
+      return updated
+    })
+    setHasUnsavedChanges(true)
+  }
+
+  const handleDeleteGroup = async (index: number) => {
+    const group = groups[index]
+    if (group._id) {
+      await deleteGroup({ id: group._id })
+      // Clear filter if we deleted the currently filtered group
+      if (selectedGroupFilter === group._id) {
+        setSelectedGroupFilter('all')
+      }
+    }
+    setGroups(groups.filter((_, i) => i !== index))
+  }
+
   const handleDeleteCreature = async (index: number) => {
     const creature = creatures[index]
     if (creature._id) {
@@ -361,6 +432,9 @@ export function Admin({ onClose }: { onClose: () => void }) {
             if (creature.biomeId !== undefined) {
               createData.biomeId = creature.biomeId
             }
+            if (creature.groupId !== undefined) {
+              createData.groupId = creature.groupId
+            }
             if (creature.imageId !== undefined) {
               createData.imageId = creature.imageId
             }
@@ -378,6 +452,9 @@ export function Admin({ onClose }: { onClose: () => void }) {
             // Only include optional fields if they have values
             if (creature.biomeId !== undefined) {
               updateData.biomeId = creature.biomeId
+            }
+            if (creature.groupId !== undefined) {
+              updateData.groupId = creature.groupId
             }
             if (creature.imageId !== undefined) {
               updateData.imageId = creature.imageId
@@ -448,12 +525,34 @@ export function Admin({ onClose }: { onClose: () => void }) {
         }
       }
 
+      // Save groups
+      for (const group of groups) {
+        if (group.isDirty) {
+          if (group.isNew) {
+            await createGroup({
+              name: group.name,
+              color: group.color,
+            })
+          } else if (group._id) {
+            const updateData: Record<string, unknown> = {
+              id: group._id,
+              name: group.name,
+            }
+            if (group.color !== undefined) {
+              updateData.color = group.color
+            }
+            await updateGroup(updateData as any)
+          }
+        }
+      }
+
       // Reset initialized flag to force reload from database
       // This ensures we get the real image URLs from Convex storage
       setInitialized(false)
       setCreatures([])
       setBiomes([])
       setDecorations([])
+      setGroups([])
       setHasUnsavedChanges(false)
       console.log('[💾SAVE] Save complete, refreshing from database...')
     } catch (error) {
@@ -533,6 +632,147 @@ export function Admin({ onClose }: { onClose: () => void }) {
           }}>
             Click anywhere to close
           </p>
+        </div>
+      )}
+
+      {/* Groups Management Modal */}
+      {showGroupsModal && (
+        <div
+          onClick={() => setShowGroupsModal(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            zIndex: 2000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: '#1a1a2e',
+              borderRadius: '12px',
+              padding: '24px',
+              width: '500px',
+              maxHeight: '80vh',
+              overflow: 'auto',
+              border: '1px solid #333',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ color: '#6366f1', margin: 0 }}>Manage Groups</h2>
+              <button
+                onClick={() => setShowGroupsModal(false)}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#333',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+            <p style={{ color: '#888', marginBottom: '16px', fontSize: '14px' }}>
+              Groups help organize your creatures into categories. Create groups here, then assign creatures to them in the table.
+            </p>
+
+            <button
+              onClick={handleAddGroup}
+              disabled={groups.length >= 50}
+              style={{
+                padding: '10px 20px',
+                backgroundColor: groups.length >= 50 ? '#555' : '#6366f1',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: groups.length >= 50 ? 'not-allowed' : 'pointer',
+                fontWeight: 'bold',
+                marginBottom: '16px',
+              }}
+            >
+              + Add Group ({groups.length}/50)
+            </button>
+
+            {groups.length === 0 ? (
+              <p style={{ color: '#666', textAlign: 'center', padding: '20px' }}>
+                No groups yet. Create one to get started!
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {groups.map((group, index) => (
+                  <div
+                    key={group._id || `new-${index}`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '12px',
+                      backgroundColor: group.isDirty ? '#2a2a3e' : '#0f0f1a',
+                      borderRadius: '6px',
+                      border: '1px solid #333',
+                    }}
+                  >
+                    <input
+                      type="color"
+                      value={group.color || '#4ade80'}
+                      onChange={(e) => handleGroupChange(index, 'color', e.target.value)}
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                      }}
+                    />
+                    <input
+                      type="text"
+                      value={group.name}
+                      onChange={(e) => handleGroupChange(index, 'name', e.target.value)}
+                      placeholder="Group name"
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        backgroundColor: '#1a1a2e',
+                        border: '1px solid #333',
+                        borderRadius: '4px',
+                        color: '#fff',
+                        fontSize: '14px',
+                      }}
+                    />
+                    <button
+                      onClick={() => handleDeleteGroup(index)}
+                      style={{
+                        padding: '8px 12px',
+                        backgroundColor: '#ef4444',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {hasUnsavedChanges && (
+              <p style={{ color: '#ffd700', marginTop: '16px', fontSize: '12px', textAlign: 'center' }}>
+                Remember to click "Save Changes" to persist your groups!
+              </p>
+            )}
+          </div>
         </div>
       )}
 
@@ -707,20 +947,62 @@ export function Admin({ onClose }: { onClose: () => void }) {
           <div>
             {/* Controls Row */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
-              <button
-                onClick={handleAddCreature}
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: '#4ade80',
-                  color: '#1a1a2e',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                }}
-              >
-                + Add Row
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button
+                  onClick={handleAddCreature}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#4ade80',
+                    color: '#1a1a2e',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                  }}
+                >
+                  + Add Row
+                </button>
+
+                {/* Groups Button */}
+                <button
+                  onClick={() => setShowGroupsModal(true)}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#6366f1',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                  }}
+                >
+                  Groups ({groups.length})
+                </button>
+
+                {/* Group Filter Dropdown */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: '#888', fontSize: '14px' }}>Filter:</span>
+                  <select
+                    value={selectedGroupFilter}
+                    onChange={(e) => setSelectedGroupFilter(e.target.value as Id<'groups'> | 'all')}
+                    style={{
+                      padding: '8px 12px',
+                      backgroundColor: '#0f0f1a',
+                      border: '1px solid #333',
+                      borderRadius: '4px',
+                      color: '#fff',
+                      fontSize: '14px',
+                    }}
+                  >
+                    <option value="all">All Groups</option>
+                    {groups.filter(g => g._id).map(group => (
+                      <option key={group._id} value={group._id}>
+                        {group.name || 'Unnamed'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
               {/* Sort Controls */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -752,6 +1034,7 @@ export function Admin({ onClose }: { onClose: () => void }) {
                 <tr style={{ backgroundColor: '#0f0f1a' }}>
                   <th style={{ padding: '12px', textAlign: 'left', color: '#888', borderBottom: '1px solid #333' }}>Image</th>
                   <th style={{ padding: '12px', textAlign: 'left', color: '#888', borderBottom: '1px solid #333' }}>Name</th>
+                  <th style={{ padding: '12px', textAlign: 'left', color: '#888', borderBottom: '1px solid #333' }}>Group</th>
                   <th style={{ padding: '12px', textAlign: 'left', color: '#888', borderBottom: '1px solid #333' }}>Biome</th>
                   <th style={{ padding: '12px', textAlign: 'left', color: '#888', borderBottom: '1px solid #333' }}>Gold Value</th>
                   <th style={{ padding: '12px', textAlign: 'left', color: '#888', borderBottom: '1px solid #333' }}>Gold/Min</th>
@@ -852,6 +1135,35 @@ export function Admin({ onClose }: { onClose: () => void }) {
                           />
                         ) : (
                           <span style={{ color: '#fff', fontWeight: '500' }}>{creature.name || '—'}</span>
+                        )}
+                      </td>
+
+                      {/* Group Column */}
+                      <td style={{ padding: '8px', borderBottom: '1px solid #333' }}>
+                        {isEditing ? (
+                          <select
+                            value={creature.groupId || ''}
+                            onChange={(e) => handleCreatureChange(creatures.indexOf(creature), 'groupId', e.target.value || undefined)}
+                            style={{
+                              width: '100%',
+                              padding: '8px',
+                              backgroundColor: '#0f0f1a',
+                              border: '1px solid #333',
+                              borderRadius: '4px',
+                              color: '#fff',
+                            }}
+                          >
+                            <option value="">-- No Group --</option>
+                            {groups.filter(g => g._id).map(group => (
+                              <option key={group._id} value={group._id}>
+                                {group.name || 'Unnamed'}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span style={{ color: '#6366f1' }}>
+                            {groups.find(g => g._id === creature.groupId)?.name || '—'}
+                          </span>
                         )}
                       </td>
 

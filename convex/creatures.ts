@@ -30,6 +30,7 @@ export const create = mutation({
   args: {
     name: v.string(),
     biomeId: v.optional(v.id("biomes")),
+    groupId: v.optional(v.id("groups")),
     goldValue: v.number(),
     goldPerMinute: v.number(),
     rarity: v.union(
@@ -58,6 +59,7 @@ export const update = mutation({
     id: v.id("creatures"),
     name: v.optional(v.string()),
     biomeId: v.optional(v.id("biomes")),
+    groupId: v.optional(v.id("groups")),
     goldValue: v.optional(v.number()),
     goldPerMinute: v.optional(v.number()),
     rarity: v.optional(

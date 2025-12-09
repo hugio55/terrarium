@@ -11,6 +11,7 @@
 import type * as biomes from "../biomes.js";
 import type * as creatures from "../creatures.js";
 import type * as decorations from "../decorations.js";
+import type * as groups from "../groups.js";
 
 import type {
   ApiFromModules,
@@ -22,6 +23,7 @@ declare const fullApi: ApiFromModules<{
   biomes: typeof biomes;
   creatures: typeof creatures;
   decorations: typeof decorations;
+  groups: typeof groups;
 }>;
 
 /**
