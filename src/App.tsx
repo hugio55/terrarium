@@ -59,16 +59,27 @@ function App() {
           setTimeout(() => {
             const currentPos = posRef.current
 
-            // Calculate fence bounds with perspective (narrower at top, wider at bottom)
-            // At y=30 (far/top): x range 38-62
-            // At y=60 (near/bottom): x range 25-75
-            const newY = 30 + Math.random() * 30 // y: 30-60
-            const yFactor = (newY - 30) / 30 // 0 at top, 1 at bottom
-            const minX = 38 - yFactor * 13 // 38 at top, 25 at bottom
-            const maxX = 62 + yFactor * 13 // 62 at top, 75 at bottom
-            const newX = minX + Math.random() * (maxX - minX)
+            // Generate target with minimum distance requirement
+            const minDistance = 15
+            let newTarget = { x: 0, y: 0 }
+            let attempts = 0
 
-            const newTarget = { x: newX, y: newY }
+            do {
+              // Calculate fence bounds with perspective (narrower at top, wider at bottom)
+              // At y=30 (far/top): x range 38-62
+              // At y=60 (near/bottom): x range 25-75
+              const newY = 30 + Math.random() * 30 // y: 30-60
+              const yFactor = (newY - 30) / 30 // 0 at top, 1 at bottom
+              const minX = 38 - yFactor * 13 // 38 at top, 25 at bottom
+              const maxX = 62 + yFactor * 13 // 62 at top, 75 at bottom
+              const newX = minX + Math.random() * (maxX - minX)
+
+              newTarget = { x: newX, y: newY }
+              attempts++
+            } while (
+              Math.sqrt(Math.pow(newTarget.x - currentPos.x, 2) + Math.pow(newTarget.y - currentPos.y, 2)) < minDistance
+              && attempts < 20
+            )
             const newDx = newTarget.x - currentPos.x
             if (Math.abs(newDx) > 0.1) {
               setMonsterFacingRight(newDx > 0)
@@ -113,7 +124,8 @@ function App() {
 
           // Update refs for smooth animation (no state batching delays)
           speedFactorRef.current = speedFactor
-          walkCycleRef.current = (walkCycleRef.current + 0.8 * deltaTime * speedFactor) % 360
+          // Use 2*PI modulo so sin wraps seamlessly (no jump at wrap point)
+          walkCycleRef.current = (walkCycleRef.current + 0.25 * deltaTime * speedFactor) % (2 * Math.PI)
 
           setMonsterPos({
             x: prev.x + dirX * currentSpeed,
@@ -126,7 +138,7 @@ function App() {
       } else {
         // When paused, smoothly decay speed and walk cycle to zero
         speedFactorRef.current = speedFactorRef.current * 0.92
-        walkCycleRef.current = (walkCycleRef.current + 0.8 * deltaTime * speedFactorRef.current) % 360
+        walkCycleRef.current = (walkCycleRef.current + 0.25 * deltaTime * speedFactorRef.current) % (2 * Math.PI)
 
         // Keep rendering while animation fades out
         if (speedFactorRef.current > 0.005) {
@@ -157,7 +169,7 @@ function App() {
       return `translate(-50%, -50%) scaleX(${flipX})`
     }
 
-    const squashStretch = Math.sin(walkCycleRef.current * 0.3) * walkIntensity
+    const squashStretch = Math.sin(walkCycleRef.current) * walkIntensity
     const scaleX = 1 + squashStretch
     const scaleY = 1 - squashStretch * 0.5
     return `translate(-50%, -50%) scaleX(${scaleX * flipX}) scaleY(${scaleY})`
@@ -269,6 +281,56 @@ function App() {
       position: 'relative',
       overflow: 'hidden',
     }}>
+      {/* Background image */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        backgroundImage: 'url(/bg.png)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        opacity: 0.15,
+        filter: 'blur(10px)',
+        pointerEvents: 'none',
+      }} />
+
+      {/* Floating particles */}
+      <style>{`
+        @keyframes float-up {
+          0% {
+            transform: translateY(0) translateX(0);
+            opacity: 0;
+          }
+          10% {
+            opacity: 0.6;
+          }
+          90% {
+            opacity: 0.6;
+          }
+          100% {
+            transform: translateY(-100vh) translateX(20px);
+            opacity: 0;
+          }
+        }
+      `}</style>
+      {[...Array(20)].map((_, i) => (
+        <div
+          key={i}
+          style={{
+            position: 'absolute',
+            left: `${5 + (i * 4.7) % 90}%`,
+            top: '100%',
+            width: `${3 + (i % 4) * 2}px`,
+            height: `${3 + (i % 4) * 2}px`,
+            borderRadius: '50%',
+            backgroundColor: 'rgba(74, 222, 128, 0.5)',
+            boxShadow: '0 0 6px rgba(74, 222, 128, 0.3)',
+            animation: `float-up ${15 + (i % 10) * 3}s linear infinite`,
+            animationDelay: `${(i * 1.7) % 15}s`,
+            pointerEvents: 'none',
+          }}
+        />
+      ))}
+
       {/* Ambient glow effect */}
       <div style={{
         position: 'absolute',
@@ -335,7 +397,7 @@ function App() {
         marginBottom: '60px',
         textTransform: 'uppercase',
       }}>
-        By Harald Studios
+        By Whoa whoa whoa, you cant just say that anymore Studios
       </p>
 
       {/* Terrarium Visual */}
