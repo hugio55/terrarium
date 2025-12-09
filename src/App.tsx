@@ -1,9 +1,75 @@
 import { useState } from 'react'
 import { Admin } from './components/Admin'
 
+type GameScreen = 'landing' | 'game'
+
 function App() {
   const [showAdmin, setShowAdmin] = useState(false)
+  const [currentScreen, setCurrentScreen] = useState<GameScreen>('landing')
 
+  // Game Screen
+  if (currentScreen === 'game') {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        width: '100%',
+        backgroundImage: 'url(/bg.png)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        position: 'relative',
+      }}>
+        {/* Admin Button */}
+        <button
+          onClick={() => setShowAdmin(true)}
+          style={{
+            position: 'fixed',
+            top: '20px',
+            right: '20px',
+            padding: '10px 20px',
+            backgroundColor: 'rgba(74, 222, 128, 0.2)',
+            color: '#4ade80',
+            border: '1px solid rgba(74, 222, 128, 0.4)',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: 'bold',
+            fontSize: '14px',
+            zIndex: 100,
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          Admin
+        </button>
+
+        {/* Back Button */}
+        <button
+          onClick={() => setCurrentScreen('landing')}
+          style={{
+            position: 'fixed',
+            top: '20px',
+            left: '20px',
+            padding: '10px 20px',
+            backgroundColor: 'rgba(0, 0, 0, 0.4)',
+            color: '#fff',
+            border: '1px solid rgba(255, 255, 255, 0.3)',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: 'bold',
+            fontSize: '14px',
+            zIndex: 100,
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          Back
+        </button>
+
+        {/* Admin Panel */}
+        {showAdmin && <Admin onClose={() => setShowAdmin(false)} />}
+      </div>
+    )
+  }
+
+  // Landing Screen
   return (
     <div style={{
       minHeight: '100vh',
@@ -275,6 +341,39 @@ function App() {
           }} />
         </div>
       </div>
+
+      {/* Play Button */}
+      <button
+        onClick={() => setCurrentScreen('game')}
+        style={{
+          marginTop: '50px',
+          padding: '16px 60px',
+          fontSize: '24px',
+          fontFamily: "'Playfair Display', Georgia, serif",
+          fontWeight: '500',
+          letterSpacing: '6px',
+          textTransform: 'uppercase',
+          color: '#0a0a12',
+          backgroundColor: '#4ade80',
+          border: 'none',
+          borderRadius: '8px',
+          cursor: 'pointer',
+          boxShadow: '0 4px 20px rgba(74, 222, 128, 0.4)',
+          transition: 'all 0.3s ease',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = '#5eeb99'
+          e.currentTarget.style.transform = 'scale(1.05)'
+          e.currentTarget.style.boxShadow = '0 6px 30px rgba(74, 222, 128, 0.6)'
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = '#4ade80'
+          e.currentTarget.style.transform = 'scale(1)'
+          e.currentTarget.style.boxShadow = '0 4px 20px rgba(74, 222, 128, 0.4)'
+        }}
+      >
+        Play
+      </button>
 
       {/* Google Fonts import */}
       <link
