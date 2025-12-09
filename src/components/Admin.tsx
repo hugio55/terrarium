@@ -68,6 +68,9 @@ export function Admin({ onClose }: { onClose: () => void }) {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [saving, setSaving] = useState(false)
 
+  // Lightbox state for viewing full-size images
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; name: string } | null>(null)
+
   // Edit mode tracking - stores IDs of rows being edited
   const [editingCreatures, setEditingCreatures] = useState<Set<string>>(new Set())
   // Future: Add edit mode for biomes and decorations
@@ -456,6 +459,55 @@ export function Admin({ onClose }: { onClose: () => void }) {
       zIndex: 1000,
       overflow: 'auto',
     }}>
+      {/* Image Lightbox */}
+      {lightboxImage && (
+        <div
+          onClick={() => setLightboxImage(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            zIndex: 2000,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <img
+            src={lightboxImage.url}
+            alt={lightboxImage.name}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '90vw',
+              maxHeight: '80vh',
+              objectFit: 'contain',
+              borderRadius: '8px',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+            }}
+          />
+          <p style={{
+            color: '#fff',
+            marginTop: '16px',
+            fontSize: '18px',
+            fontWeight: 'bold',
+          }}>
+            {lightboxImage.name}
+          </p>
+          <p style={{
+            color: '#888',
+            marginTop: '8px',
+            fontSize: '14px',
+          }}>
+            Click anywhere to close
+          </p>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{
         display: 'flex',
@@ -694,12 +746,23 @@ export function Admin({ onClose }: { onClose: () => void }) {
                             <img
                               src={creature.imageUrl}
                               alt={creature.name}
+                              onClick={() => setLightboxImage({ url: creature.imageUrl!, name: creature.name || 'Creature' })}
                               style={{
                                 width: '48px',
                                 height: '48px',
                                 objectFit: 'cover',
                                 borderRadius: '4px',
                                 border: '1px solid #333',
+                                cursor: 'pointer',
+                                transition: 'transform 0.15s, box-shadow 0.15s',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.transform = 'scale(1.1)'
+                                e.currentTarget.style.boxShadow = '0 4px 12px rgba(74, 222, 128, 0.3)'
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.transform = 'scale(1)'
+                                e.currentTarget.style.boxShadow = 'none'
                               }}
                             />
                           ) : (
@@ -953,12 +1016,23 @@ export function Admin({ onClose }: { onClose: () => void }) {
                           <img
                             src={decoration.imageUrl}
                             alt={decoration.name}
+                            onClick={() => setLightboxImage({ url: decoration.imageUrl!, name: decoration.name || 'Decoration' })}
                             style={{
                               width: '48px',
                               height: '48px',
                               objectFit: 'cover',
                               borderRadius: '4px',
                               border: '1px solid #333',
+                              cursor: 'pointer',
+                              transition: 'transform 0.15s, box-shadow 0.15s',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.transform = 'scale(1.1)'
+                              e.currentTarget.style.boxShadow = '0 4px 12px rgba(74, 222, 128, 0.3)'
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.transform = 'scale(1)'
+                              e.currentTarget.style.boxShadow = 'none'
                             }}
                           />
                         ) : (
