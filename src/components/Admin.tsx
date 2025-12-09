@@ -67,7 +67,34 @@ interface DecorationRow {
   isDirty?: boolean
 }
 
-type TabType = 'biomes' | 'creatures' | 'decorations'
+type TabType = 'biomes' | 'creatures' | 'decorations' | 'chart'
+
+type ChartVariant = 'normal' | 'gold' | 'corrupted'
+
+// Creature chart configuration
+const CHART_COLUMNS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
+const CHART_ROWS = [1, 2, 3, 4, 5]
+
+// Rarity distribution by column (A-Z)
+// Common: A-J (10), Uncommon: K-P (6), Rare: Q-U (5), Legendary: V-X (3), Mythic: Y (1), Unique: Z (1)
+const getColumnRarity = (col: string): 'common' | 'uncommon' | 'rare' | 'legendary' | 'mythic' | 'unique' => {
+  const idx = col.charCodeAt(0) - 65 // A=0, B=1, etc.
+  if (idx <= 9) return 'common'      // A-J (0-9)
+  if (idx <= 15) return 'uncommon'   // K-P (10-15)
+  if (idx <= 20) return 'rare'       // Q-U (16-20)
+  if (idx <= 23) return 'legendary'  // V-X (21-23)
+  if (idx === 24) return 'mythic'    // Y (24)
+  return 'unique'                     // Z (25)
+}
+
+const CHART_RARITY_COLORS: Record<string, { bg: string; border: string }> = {
+  common: { bg: '#c4a77d', border: '#8b7355' },      // Tan
+  uncommon: { bg: '#4a90d9', border: '#2d5a8c' },    // Blue
+  rare: { bg: '#d94a8c', border: '#8c2d5a' },        // Pink
+  legendary: { bg: '#f5a623', border: '#b87a1a' },   // Yellow/Orange
+  mythic: { bg: '#c41e3a', border: '#8b1528' },      // Red
+  unique: { bg: '#4ade80', border: '#2d8b4a' },      // Green
+}
 
 export function Admin({ onClose }: { onClose: () => void }) {
   const [activeTab, setActiveTab] = useState<TabType>('creatures')
@@ -86,6 +113,9 @@ export function Admin({ onClose }: { onClose: () => void }) {
 
   // Group filter for creatures tab
   const [selectedGroupFilter, setSelectedGroupFilter] = useState<Id<'groups'> | 'all'>('all')
+
+  // Chart variant for creature chart tab
+  const [chartVariant, setChartVariant] = useState<ChartVariant>('normal')
 
   // Edit mode tracking - stores IDs of rows being edited
   const [editingCreatures, setEditingCreatures] = useState<Set<string>>(new Set())
@@ -837,6 +867,9 @@ export function Admin({ onClose }: { onClose: () => void }) {
         <button style={tabStyle('decorations')} onClick={() => setActiveTab('decorations')}>
           Decorations
         </button>
+        <button style={tabStyle('chart')} onClick={() => setActiveTab('chart')}>
+          Chart
+        </button>
       </div>
 
       {/* Content */}
@@ -1501,6 +1534,168 @@ export function Admin({ onClose }: { onClose: () => void }) {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* CHART TAB */}
+        {activeTab === 'chart' && (
+          <div>
+            {/* Variant Tabs */}
+            <div style={{
+              display: 'flex',
+              gap: '4px',
+              marginBottom: '20px',
+              backgroundColor: '#0f0f1a',
+              padding: '4px',
+              borderRadius: '8px',
+              width: 'fit-content',
+            }}>
+              {(['normal', 'gold', 'corrupted'] as ChartVariant[]).map((variant) => (
+                <button
+                  key={variant}
+                  onClick={() => setChartVariant(variant)}
+                  style={{
+                    padding: '10px 24px',
+                    backgroundColor: chartVariant === variant ? (
+                      variant === 'normal' ? '#4ade80' :
+                      variant === 'gold' ? '#ffd700' :
+                      '#9333ea'
+                    ) : 'transparent',
+                    color: chartVariant === variant ? '#1a1a2e' : '#888',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    fontSize: '14px',
+                    textTransform: 'capitalize',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  {variant}
+                </button>
+              ))}
+            </div>
+
+            {/* Rarity Labels */}
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              marginBottom: '12px',
+              flexWrap: 'wrap',
+            }}>
+              {[
+                { label: 'Common (A-J)', color: CHART_RARITY_COLORS.common.bg },
+                { label: 'Uncommon (K-P)', color: CHART_RARITY_COLORS.uncommon.bg },
+                { label: 'Rare (Q-U)', color: CHART_RARITY_COLORS.rare.bg },
+                { label: 'Legendary (V-X)', color: CHART_RARITY_COLORS.legendary.bg },
+                { label: 'Mythic (Y)', color: CHART_RARITY_COLORS.mythic.bg },
+                { label: 'Unique (Z)', color: CHART_RARITY_COLORS.unique.bg },
+              ].map(({ label, color }) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    backgroundColor: color,
+                    borderRadius: '3px',
+                  }} />
+                  <span style={{ color: '#888', fontSize: '12px' }}>{label}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Grid Container */}
+            <div style={{
+              overflowX: 'auto',
+              paddingBottom: '20px',
+            }}>
+              {/* Column Headers */}
+              <div style={{
+                display: 'flex',
+                marginLeft: '32px',
+                marginBottom: '4px',
+              }}>
+                {CHART_COLUMNS.map((col) => (
+                  <div
+                    key={col}
+                    style={{
+                      width: '48px',
+                      textAlign: 'center',
+                      color: '#666',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                    }}
+                  >
+                    {col}
+                  </div>
+                ))}
+              </div>
+
+              {/* Grid Rows */}
+              {CHART_ROWS.map((row) => (
+                <div key={row} style={{ display: 'flex', alignItems: 'center', marginBottom: '2px' }}>
+                  {/* Row Label */}
+                  <div style={{
+                    width: '28px',
+                    textAlign: 'center',
+                    color: '#666',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    marginRight: '4px',
+                  }}>
+                    {row}
+                  </div>
+
+                  {/* Cells */}
+                  {CHART_COLUMNS.map((col) => {
+                    const rarity = getColumnRarity(col)
+                    const colors = CHART_RARITY_COLORS[rarity]
+                    const variantSuffix = chartVariant === 'normal' ? 'N' : chartVariant === 'gold' ? 'G' : 'C'
+                    const cellCode = `${col}${row}${variantSuffix}`
+
+                    return (
+                      <div
+                        key={`${col}${row}`}
+                        style={{
+                          width: '46px',
+                          height: '46px',
+                          backgroundColor: colors.bg,
+                          border: `2px solid ${colors.border}`,
+                          borderRadius: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          margin: '1px',
+                          cursor: 'pointer',
+                          transition: 'transform 0.1s, box-shadow 0.1s',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'scale(1.05)'
+                          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'scale(1)'
+                          e.currentTarget.style.boxShadow = 'none'
+                        }}
+                      >
+                        <span style={{
+                          color: '#1a1a2e',
+                          fontSize: '10px',
+                          fontWeight: 'bold',
+                          textShadow: '0 1px 1px rgba(255,255,255,0.3)',
+                        }}>
+                          {cellCode}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+
+            {/* Info */}
+            <p style={{ color: '#666', fontSize: '12px', marginTop: '16px' }}>
+              Total cells: {CHART_COLUMNS.length * CHART_ROWS.length} per variant ({CHART_COLUMNS.length * CHART_ROWS.length * 3} total across all variants)
+            </p>
           </div>
         )}
       </div>
