@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Admin } from './components/Admin'
 
 type GameScreen = 'landing' | 'game'
@@ -6,6 +6,41 @@ type GameScreen = 'landing' | 'game'
 function App() {
   const [showAdmin, setShowAdmin] = useState(false)
   const [currentScreen, setCurrentScreen] = useState<GameScreen>('landing')
+
+  // Monster position state
+  const [monsterPos, setMonsterPos] = useState({ x: 50, y: 50 })
+  const [monsterTarget, setMonsterTarget] = useState({ x: 50, y: 50 })
+
+  // Monster wandering effect
+  useEffect(() => {
+    if (currentScreen !== 'game') return
+
+    // Set new random target every 3-5 seconds
+    const targetInterval = setInterval(() => {
+      setMonsterTarget({
+        x: 20 + Math.random() * 60, // Keep within 20-80% of screen width
+        y: 30 + Math.random() * 40, // Keep within 30-70% of screen height (yard area)
+      })
+    }, 3000 + Math.random() * 2000)
+
+    // Smoothly move toward target
+    const moveInterval = setInterval(() => {
+      setMonsterPos(prev => {
+        const dx = monsterTarget.x - prev.x
+        const dy = monsterTarget.y - prev.y
+        const speed = 0.02 // Slow movement
+        return {
+          x: prev.x + dx * speed,
+          y: prev.y + dy * speed,
+        }
+      })
+    }, 50)
+
+    return () => {
+      clearInterval(targetInterval)
+      clearInterval(moveInterval)
+    }
+  }, [currentScreen, monsterTarget])
 
   // Game Screen
   if (currentScreen === 'game') {
@@ -63,6 +98,23 @@ function App() {
         >
           Back
         </button>
+
+        {/* Monster */}
+        <img
+          src="/monster.png"
+          alt="Monster"
+          style={{
+            position: 'absolute',
+            left: `${monsterPos.x}%`,
+            top: `${monsterPos.y}%`,
+            transform: 'translate(-50%, -50%)',
+            width: '120px',
+            height: 'auto',
+            transition: 'left 0.05s linear, top 0.05s linear',
+            pointerEvents: 'none',
+            filter: 'drop-shadow(2px 4px 6px rgba(0,0,0,0.4))',
+          }}
+        />
 
         {/* Admin Panel */}
         {showAdmin && <Admin onClose={() => setShowAdmin(false)} />}
