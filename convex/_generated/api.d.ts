@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as backups from "../backups.js";
 import type * as biomes from "../biomes.js";
 import type * as creatures from "../creatures.js";
 import type * as decorations from "../decorations.js";
@@ -20,6 +21,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  backups: typeof backups;
   biomes: typeof biomes;
   creatures: typeof creatures;
   decorations: typeof decorations;

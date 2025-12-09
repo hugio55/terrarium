@@ -115,6 +115,7 @@ export function Admin({ onClose }: { onClose: () => void }) {
   const [groups, setGroups] = useState<GroupRow[]>([])
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [backingUp, setBackingUp] = useState(false)
 
   // Lightbox state for viewing full-size images
   const [lightboxImage, setLightboxImage] = useState<{ url: string; name: string } | null>(null)
@@ -154,6 +155,10 @@ export function Admin({ onClose }: { onClose: () => void }) {
   const updateCreature = useMutation(api.creatures.update)
   const deleteCreature = useMutation(api.creatures.remove)
   const generateCreatureUploadUrl = useMutation(api.creatures.generateUploadUrl)
+
+  // Backup mutations
+  const getAllBackupData = useQuery(api.backups.getAllData)
+  const storeBackup = useMutation(api.backups.storeBackup)
 
   const createBiome = useMutation(api.biomes.create)
   const updateBiome = useMutation(api.biomes.update)
@@ -647,6 +652,48 @@ export function Admin({ onClose }: { onClose: () => void }) {
     }
   }
 
+  // Backup handler - downloads JSON locally AND stores on backend
+  const handleBackup = async () => {
+    if (!getAllBackupData) {
+      alert('Backup data not loaded yet. Please wait and try again.')
+      return
+    }
+
+    setBackingUp(true)
+    try {
+      // Create backup JSON
+      const backupData = {
+        ...getAllBackupData,
+        exportedAt: new Date().toISOString(),
+      }
+      const jsonString = JSON.stringify(backupData, null, 2)
+
+      // 1. Store on backend
+      await storeBackup({ data: jsonString })
+      console.log('[📦BACKUP] Stored backup on backend')
+
+      // 2. Download locally
+      const blob = new Blob([jsonString], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+      a.href = url
+      a.download = `plantz-backup-${timestamp}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      console.log('[📦BACKUP] Downloaded backup locally')
+      alert(`Backup complete!\n\n✓ Saved to backend (keeps last 10)\n✓ Downloaded to your computer`)
+    } catch (error) {
+      console.error('[📦BACKUP] Error creating backup:', error)
+      alert('Error creating backup. Please try again.')
+    } finally {
+      setBackingUp(false)
+    }
+  }
+
   const tabStyle = (tab: TabType) => ({
     padding: '12px 24px',
     cursor: 'pointer',
@@ -871,6 +918,23 @@ export function Admin({ onClose }: { onClose: () => void }) {
       }}>
         <h1 style={{ color: '#4ade80', margin: 0, fontSize: '28px' }}>Admin Panel</h1>
         <div style={{ display: 'flex', gap: '12px' }}>
+          {/* Backup Button */}
+          <button
+            onClick={handleBackup}
+            disabled={backingUp}
+            style={{
+              padding: '10px 24px',
+              backgroundColor: backingUp ? '#555' : '#6366f1',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: backingUp ? 'not-allowed' : 'pointer',
+              fontWeight: 'bold',
+              fontSize: '16px',
+            }}
+          >
+            {backingUp ? 'Backing up...' : '📦 Backup'}
+          </button>
           {hasUnsavedChanges && (
             <button
               onClick={handleSave}
@@ -1418,37 +1482,30 @@ export function Admin({ onClose }: { onClose: () => void }) {
                         )}
                       </td>
 
-                      {/* Rarity Column */}
+                      {/* Rarity Column (derived from chart code) */}
                       <td style={{ padding: '8px', borderBottom: '1px solid #333' }}>
-                        {isEditing ? (
-                          <select
-                            value={creature.rarity}
-                            onChange={(e) => handleCreatureChange(creatures.indexOf(creature), 'rarity', e.target.value as Rarity)}
-                            style={{
-                              width: '100%',
-                              padding: '8px',
-                              backgroundColor: '#0f0f1a',
-                              border: '1px solid #333',
-                              borderRadius: '4px',
-                              color: RARITY_COLORS[creature.rarity],
-                              fontWeight: 'bold',
-                            }}
-                          >
-                            <option value="common" style={{ color: RARITY_COLORS.common }}>Common</option>
-                            <option value="uncommon" style={{ color: RARITY_COLORS.uncommon }}>Uncommon</option>
-                            <option value="rare" style={{ color: RARITY_COLORS.rare }}>Rare</option>
-                            <option value="legendary" style={{ color: RARITY_COLORS.legendary }}>Legendary</option>
-                            <option value="mythic" style={{ color: RARITY_COLORS.mythic }}>Mythic</option>
-                          </select>
-                        ) : (
-                          <span style={{
-                            color: RARITY_COLORS[creature.rarity],
-                            fontWeight: 'bold',
-                            textTransform: 'capitalize'
-                          }}>
-                            {creature.rarity}
-                          </span>
-                        )}
+                        {(() => {
+                          // Derive rarity from chart code
+                          const derivedRarity = creature.chartCode
+                            ? getColumnRarity(creature.chartCode.charAt(0))
+                            : null
+
+                          if (derivedRarity) {
+                            const rarityColor = derivedRarity === 'unique'
+                              ? '#4ade80'
+                              : RARITY_COLORS[derivedRarity as Rarity] || '#888'
+                            return (
+                              <span style={{
+                                color: rarityColor,
+                                fontWeight: 'bold',
+                                textTransform: 'capitalize'
+                              }}>
+                                {derivedRarity}
+                              </span>
+                            )
+                          }
+                          return <span style={{ color: '#666' }}>—</span>
+                        })()}
                       </td>
 
                       {/* Actions Column */}

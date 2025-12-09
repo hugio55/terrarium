@@ -43,4 +43,9 @@ export default defineSchema({
     imageUrl: v.optional(v.string()),
     order: v.number(),
   }),
+
+  backups: defineTable({
+    data: v.string(), // JSON string containing all backup data
+    createdAt: v.number(), // Timestamp
+  }),
 });
