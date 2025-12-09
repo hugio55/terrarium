@@ -8,8 +8,11 @@ function App() {
   const [currentScreen, setCurrentScreen] = useState<GameScreen>('landing')
 
   // Monster position state
-  const [monsterPos, setMonsterPos] = useState({ x: 50, y: 50 })
-  const [monsterTarget, setMonsterTarget] = useState({ x: 50, y: 50 })
+  const [monsterPos, setMonsterPos] = useState({ x: 30, y: 50 })
+  const [monsterTarget, setMonsterTarget] = useState({ x: 70, y: 40 }) // Start with different target for immediate movement
+  const [monsterFacingRight, setMonsterFacingRight] = useState(false)
+  const [monsterSpeed, setMonsterSpeed] = useState(0)
+  const [walkCycle, setWalkCycle] = useState(0)
 
   // Monster wandering effect
   useEffect(() => {
@@ -17,10 +20,11 @@ function App() {
 
     // Set new random target every 3-5 seconds
     const targetInterval = setInterval(() => {
-      setMonsterTarget({
-        x: 20 + Math.random() * 60, // Keep within 20-80% of screen width
-        y: 30 + Math.random() * 40, // Keep within 30-70% of screen height (yard area)
-      })
+      const newTarget = {
+        x: 20 + Math.random() * 60,
+        y: 30 + Math.random() * 40,
+      }
+      setMonsterTarget(newTarget)
     }, 3000 + Math.random() * 2000)
 
     // Smoothly move toward target
@@ -28,7 +32,17 @@ function App() {
       setMonsterPos(prev => {
         const dx = monsterTarget.x - prev.x
         const dy = monsterTarget.y - prev.y
-        const speed = 0.02 // Slow movement
+        const distance = Math.sqrt(dx * dx + dy * dy)
+        const speed = 0.03
+
+        // Update facing direction based on horizontal movement
+        if (Math.abs(dx) > 0.1) {
+          setMonsterFacingRight(dx > 0)
+        }
+
+        // Update speed for walk animation
+        setMonsterSpeed(distance * speed)
+
         return {
           x: prev.x + dx * speed,
           y: prev.y + dy * speed,
@@ -36,11 +50,27 @@ function App() {
       })
     }, 50)
 
+    // Walk cycle animation
+    const walkInterval = setInterval(() => {
+      setWalkCycle(prev => (prev + 1) % 360)
+    }, 50)
+
     return () => {
       clearInterval(targetInterval)
       clearInterval(moveInterval)
+      clearInterval(walkInterval)
     }
   }, [currentScreen, monsterTarget])
+
+  // Calculate walk animation transform
+  const getWalkTransform = () => {
+    const walkIntensity = Math.min(monsterSpeed * 3, 0.15) // Cap the effect
+    const squashStretch = Math.sin(walkCycle * 0.3) * walkIntensity
+    const scaleX = 1 + squashStretch
+    const scaleY = 1 - squashStretch * 0.5
+    const flipX = monsterFacingRight ? -1 : 1
+    return `translate(-50%, -50%) scaleX(${scaleX * flipX}) scaleY(${scaleY})`
+  }
 
   // Game Screen
   if (currentScreen === 'game') {
@@ -107,10 +137,9 @@ function App() {
             position: 'absolute',
             left: `${monsterPos.x}%`,
             top: `${monsterPos.y}%`,
-            transform: 'translate(-50%, -50%)',
+            transform: getWalkTransform(),
             width: '120px',
             height: 'auto',
-            transition: 'left 0.05s linear, top 0.05s linear',
             pointerEvents: 'none',
             filter: 'drop-shadow(2px 4px 6px rgba(0,0,0,0.4))',
           }}
