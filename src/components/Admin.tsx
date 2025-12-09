@@ -70,7 +70,7 @@ interface DecorationRow {
 
 type TabType = 'biomes' | 'creatures' | 'decorations' | 'chart'
 
-type ChartVariant = 'normal' | 'gold' | 'corrupted'
+type ChartVariant = 'normal' | 'painted' | 'gold' | 'corrupted'
 
 // Creature chart configuration
 const CHART_COLUMNS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
@@ -97,9 +97,9 @@ const CHART_RARITY_COLORS: Record<string, { bg: string; border: string }> = {
   unique: { bg: '#4ade80', border: '#2d8b4a' },      // Green
 }
 
-// Generate all possible chart codes
+// Generate all possible chart codes (N=Normal, P=Painted, G=Gold, C=Corrupted)
 const ALL_CHART_CODES: string[] = []
-for (const variant of ['N', 'G', 'C']) {
+for (const variant of ['N', 'P', 'G', 'C']) {
   for (const col of CHART_COLUMNS) {
     for (const row of CHART_ROWS) {
       ALL_CHART_CODES.push(`${col}${row}${variant}`)
@@ -134,6 +134,8 @@ export function Admin({ onClose }: { onClose: () => void }) {
     creature: CreatureRow
     x: number
     y: number
+    alignLeft?: boolean // true if tooltip should align to left edge instead of center
+    showBelow?: boolean // true if tooltip should show below instead of above
   } | null>(null)
 
   // Edit mode tracking - stores IDs of rows being edited
@@ -1752,7 +1754,7 @@ export function Admin({ onClose }: { onClose: () => void }) {
               borderRadius: '8px',
               width: 'fit-content',
             }}>
-              {(['normal', 'gold', 'corrupted'] as ChartVariant[]).map((variant) => (
+              {(['normal', 'painted', 'gold', 'corrupted'] as ChartVariant[]).map((variant) => (
                 <button
                   key={variant}
                   onClick={() => setChartVariant(variant)}
@@ -1760,6 +1762,7 @@ export function Admin({ onClose }: { onClose: () => void }) {
                     padding: '10px 24px',
                     backgroundColor: chartVariant === variant ? (
                       variant === 'normal' ? '#4ade80' :
+                      variant === 'painted' ? '#f472b6' :
                       variant === 'gold' ? '#ffd700' :
                       '#9333ea'
                     ) : 'transparent',
@@ -1851,7 +1854,7 @@ export function Admin({ onClose }: { onClose: () => void }) {
                   {CHART_COLUMNS.map((col) => {
                     const rarity = getColumnRarity(col)
                     const colors = CHART_RARITY_COLORS[rarity]
-                    const variantSuffix = chartVariant === 'normal' ? 'N' : chartVariant === 'gold' ? 'G' : 'C'
+                    const variantSuffix = chartVariant === 'normal' ? 'N' : chartVariant === 'painted' ? 'P' : chartVariant === 'gold' ? 'G' : 'C'
                     const cellCode = `${col}${row}${variantSuffix}`
                     const assignedCreature = getCreatureByChartCode(cellCode)
 
@@ -1879,10 +1882,22 @@ export function Admin({ onClose }: { onClose: () => void }) {
                           e.currentTarget.style.zIndex = '10'
                           if (assignedCreature) {
                             const rect = e.currentTarget.getBoundingClientRect()
+                            const tooltipWidth = 200 // approximate tooltip width
+                            const tooltipHeight = 120 // approximate tooltip height
+
+                            // Check if tooltip would go off left edge
+                            const centerX = rect.left + rect.width / 2
+                            const alignLeft = centerX - tooltipWidth / 2 < 10
+
+                            // Check if tooltip would go off top edge
+                            const showBelow = rect.top - tooltipHeight < 10
+
                             setChartTooltip({
                               creature: assignedCreature,
-                              x: rect.left + rect.width / 2,
-                              y: rect.top - 10,
+                              x: alignLeft ? rect.left : centerX,
+                              y: showBelow ? rect.bottom + 10 : rect.top - 10,
+                              alignLeft,
+                              showBelow,
                             })
                           }
                         }}
@@ -1928,7 +1943,9 @@ export function Admin({ onClose }: { onClose: () => void }) {
                   position: 'fixed',
                   left: chartTooltip.x,
                   top: chartTooltip.y,
-                  transform: 'translate(-50%, -100%)',
+                  transform: chartTooltip.alignLeft
+                    ? (chartTooltip.showBelow ? 'translate(0, 0)' : 'translate(0, -100%)')
+                    : (chartTooltip.showBelow ? 'translate(-50%, 0)' : 'translate(-50%, -100%)'),
                   backgroundColor: '#1a1a2e',
                   border: '2px solid #4ade80',
                   borderRadius: '8px',
@@ -1942,14 +1959,21 @@ export function Admin({ onClose }: { onClose: () => void }) {
                 {/* Arrow */}
                 <div style={{
                   position: 'absolute',
-                  bottom: '-8px',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
+                  ...(chartTooltip.showBelow ? {
+                    top: '-8px',
+                    borderTop: 'none',
+                    borderBottom: '8px solid #4ade80',
+                  } : {
+                    bottom: '-8px',
+                    borderBottom: 'none',
+                    borderTop: '8px solid #4ade80',
+                  }),
+                  left: chartTooltip.alignLeft ? '20px' : '50%',
+                  transform: chartTooltip.alignLeft ? 'none' : 'translateX(-50%)',
                   width: 0,
                   height: 0,
                   borderLeft: '8px solid transparent',
                   borderRight: '8px solid transparent',
-                  borderTop: '8px solid #4ade80',
                 }} />
 
                 {/* Content */}
@@ -1996,7 +2020,7 @@ export function Admin({ onClose }: { onClose: () => void }) {
 
             {/* Info */}
             <p style={{ color: '#666', fontSize: '12px', marginTop: '16px' }}>
-              Total cells: {CHART_COLUMNS.length * CHART_ROWS.length} per variant ({CHART_COLUMNS.length * CHART_ROWS.length * 3} total across all variants)
+              Total cells: {CHART_COLUMNS.length * CHART_ROWS.length} per variant ({CHART_COLUMNS.length * CHART_ROWS.length * 4} total across all variants)
             </p>
           </div>
         )}
