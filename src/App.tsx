@@ -15,7 +15,7 @@ function App() {
         width: '100%',
         backgroundImage: 'url(/bg.png)',
         backgroundSize: '100% auto',
-        backgroundPosition: 'bottom center',
+        backgroundPosition: 'center center',
         backgroundRepeat: 'no-repeat',
         backgroundColor: '#2d5a3d',
         position: 'relative',
