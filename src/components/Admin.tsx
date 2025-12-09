@@ -137,9 +137,7 @@ export function Admin({ onClose }: { onClose: () => void }) {
 
   // Edit mode tracking - stores IDs of rows being edited
   const [editingCreatures, setEditingCreatures] = useState<Set<string>>(new Set())
-  // Future: Add edit mode for biomes and decorations
-  // const [editingBiomes, setEditingBiomes] = useState<Set<string>>(new Set())
-  // const [editingDecorations, setEditingDecorations] = useState<Set<string>>(new Set())
+  const [editingBiomes, setEditingBiomes] = useState<Set<string>>(new Set())
 
   // Sorting state
   const [sortField, setSortField] = useState<SortField>('name')
@@ -242,6 +240,25 @@ export function Admin({ onClose }: { onClose: () => void }) {
     return creature.isNew || editingCreatures.has(id)
   }
 
+  // Toggle edit mode for a biome
+  const toggleEditBiome = (id: string) => {
+    setEditingBiomes(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(id)) {
+        newSet.delete(id)
+      } else {
+        newSet.add(id)
+      }
+      return newSet
+    })
+  }
+
+  // Check if a biome is in edit mode
+  const isBiomeEditing = (biome: BiomeRow, index: number): boolean => {
+    const id = biome._id || `new-${index}`
+    return biome.isNew || editingBiomes.has(id)
+  }
+
   // Get sorted and filtered creatures
   const getSortedCreatures = (): CreatureRow[] => {
     // First filter by group if a group is selected
@@ -297,6 +314,7 @@ export function Admin({ onClose }: { onClose: () => void }) {
   }
 
   const handleAddBiome = () => {
+    const newId = `new-${Date.now()}`
     setBiomes([...biomes, {
       name: '',
       description: '',
@@ -304,6 +322,8 @@ export function Admin({ onClose }: { onClose: () => void }) {
       isNew: true,
       isDirty: true,
     }])
+    // Auto-enter edit mode for new rows
+    setEditingBiomes(prev => new Set(prev).add(newId))
     setHasUnsavedChanges(true)
   }
 
@@ -934,76 +954,123 @@ export function Admin({ onClose }: { onClose: () => void }) {
                   <th style={{ padding: '12px', textAlign: 'left', color: '#888', borderBottom: '1px solid #333' }}>Name</th>
                   <th style={{ padding: '12px', textAlign: 'left', color: '#888', borderBottom: '1px solid #333' }}>Description</th>
                   <th style={{ padding: '12px', textAlign: 'left', color: '#888', borderBottom: '1px solid #333' }}>Color</th>
-                  <th style={{ padding: '12px', textAlign: 'center', color: '#888', borderBottom: '1px solid #333', width: '80px' }}>Actions</th>
+                  <th style={{ padding: '12px', textAlign: 'center', color: '#888', borderBottom: '1px solid #333', width: '140px' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {biomes.map((biome, index) => (
-                  <tr key={biome._id || `new-${index}`} style={{ backgroundColor: biome.isDirty ? '#2a2a3e' : 'transparent' }}>
-                    <td style={{ padding: '8px', borderBottom: '1px solid #333' }}>
-                      <input
-                        type="text"
-                        value={biome.name}
-                        onChange={(e) => handleBiomeChange(index, 'name', e.target.value)}
-                        style={{
-                          width: '100%',
-                          padding: '8px',
-                          backgroundColor: '#0f0f1a',
-                          border: '1px solid #333',
-                          borderRadius: '4px',
-                          color: '#fff',
-                        }}
-                      />
-                    </td>
-                    <td style={{ padding: '8px', borderBottom: '1px solid #333' }}>
-                      <input
-                        type="text"
-                        value={biome.description || ''}
-                        onChange={(e) => handleBiomeChange(index, 'description', e.target.value)}
-                        style={{
-                          width: '100%',
-                          padding: '8px',
-                          backgroundColor: '#0f0f1a',
-                          border: '1px solid #333',
-                          borderRadius: '4px',
-                          color: '#fff',
-                        }}
-                      />
-                    </td>
-                    <td style={{ padding: '8px', borderBottom: '1px solid #333' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <input
-                          type="color"
-                          value={biome.color || '#4a7c59'}
-                          onChange={(e) => handleBiomeChange(index, 'color', e.target.value)}
-                          style={{
-                            width: '40px',
-                            height: '32px',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                          }}
-                        />
-                        <span style={{ color: '#888', fontSize: '12px' }}>{biome.color}</span>
-                      </div>
-                    </td>
-                    <td style={{ padding: '8px', borderBottom: '1px solid #333', textAlign: 'center' }}>
-                      <button
-                        onClick={() => handleDeleteBiome(index)}
-                        style={{
-                          padding: '6px 12px',
-                          backgroundColor: '#ef4444',
-                          color: '#fff',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {biomes.map((biome, index) => {
+                  const isEditing = isBiomeEditing(biome, index)
+                  const rowId = biome._id || `new-${index}`
+
+                  return (
+                    <tr key={rowId} style={{ backgroundColor: biome.isDirty ? '#2a2a3e' : 'transparent' }}>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #333' }}>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={biome.name}
+                            onChange={(e) => handleBiomeChange(index, 'name', e.target.value)}
+                            placeholder="Biome name"
+                            style={{
+                              width: '100%',
+                              padding: '8px',
+                              backgroundColor: '#0f0f1a',
+                              border: '1px solid #333',
+                              borderRadius: '4px',
+                              color: '#fff',
+                            }}
+                          />
+                        ) : (
+                          <span style={{ color: '#fff', fontWeight: '500' }}>{biome.name || '—'}</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #333' }}>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={biome.description || ''}
+                            onChange={(e) => handleBiomeChange(index, 'description', e.target.value)}
+                            placeholder="Description"
+                            style={{
+                              width: '100%',
+                              padding: '8px',
+                              backgroundColor: '#0f0f1a',
+                              border: '1px solid #333',
+                              borderRadius: '4px',
+                              color: '#fff',
+                            }}
+                          />
+                        ) : (
+                          <span style={{ color: '#888' }}>{biome.description || '—'}</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #333' }}>
+                        {isEditing ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <input
+                              type="color"
+                              value={biome.color || '#4a7c59'}
+                              onChange={(e) => handleBiomeChange(index, 'color', e.target.value)}
+                              style={{
+                                width: '40px',
+                                height: '32px',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                              }}
+                            />
+                            <span style={{ color: '#888', fontSize: '12px' }}>{biome.color}</span>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: '4px',
+                              backgroundColor: biome.color || '#4a7c59',
+                              border: '1px solid #555',
+                            }} />
+                            <span style={{ color: '#888', fontSize: '12px' }}>{biome.color}</span>
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #333', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                          {!biome.isNew && (
+                            <button
+                              onClick={() => toggleEditBiome(biome._id || rowId)}
+                              style={{
+                                padding: '6px 12px',
+                                backgroundColor: isEditing ? '#6366f1' : '#333',
+                                color: '#fff',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '12px',
+                              }}
+                            >
+                              {isEditing ? 'Done' : 'Edit'}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteBiome(index)}
+                            style={{
+                              padding: '6px 12px',
+                              backgroundColor: '#ef4444',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '12px',
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
