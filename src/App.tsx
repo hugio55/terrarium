@@ -33,7 +33,7 @@ function Firefly({
   const [isVisible, setIsVisible] = useState(true)
   const [isFading, setIsFading] = useState(false)
   const [opacity, setOpacity] = useState(1)
-  const [renderTick, setRenderTick] = useState(0)
+  const [, setRenderTick] = useState(0) // Used to force re-renders
   const posRef = useRef({
     x: direction === 'left' ? -20 : (typeof window !== 'undefined' ? window.innerWidth + 20 : 1000),
     y: (startY / 100) * (typeof window !== 'undefined' ? window.innerHeight : 800)
