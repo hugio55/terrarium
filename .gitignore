@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dist-electron/
+
+# Environment files
+.env.local
+.env
+
+# Vercel
+.vercel
+
+# System files
+nul
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
