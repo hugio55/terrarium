@@ -1810,7 +1810,7 @@ export function Admin({ onClose }: { onClose: () => void }) {
 
             {/* Grid Container */}
             <div style={{
-              overflowX: 'auto',
+              width: '100%',
               paddingBottom: '20px',
             }}>
               {/* Column Headers */}
@@ -1823,7 +1823,7 @@ export function Admin({ onClose }: { onClose: () => void }) {
                   <div
                     key={col}
                     style={{
-                      width: '48px',
+                      flex: 1,
                       textAlign: 'center',
                       color: '#666',
                       fontSize: '11px',
@@ -1841,6 +1841,7 @@ export function Admin({ onClose }: { onClose: () => void }) {
                   {/* Row Label */}
                   <div style={{
                     width: '28px',
+                    minWidth: '28px',
                     textAlign: 'center',
                     color: '#666',
                     fontSize: '11px',
@@ -1862,8 +1863,8 @@ export function Admin({ onClose }: { onClose: () => void }) {
                       <div
                         key={`${col}${row}`}
                         style={{
-                          width: '46px',
-                          height: '46px',
+                          flex: 1,
+                          aspectRatio: '1',
                           backgroundColor: colors.bg,
                           border: `2px solid ${colors.border}`,
                           borderRadius: '4px',
