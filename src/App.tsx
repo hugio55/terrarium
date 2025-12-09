@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Admin } from './components/Admin'
 
 type GameScreen = 'landing' | 'game'
@@ -8,67 +8,158 @@ function App() {
   const [currentScreen, setCurrentScreen] = useState<GameScreen>('landing')
 
   // Monster position state
-  const [monsterPos, setMonsterPos] = useState({ x: 30, y: 50 })
-  const [monsterTarget, setMonsterTarget] = useState({ x: 70, y: 40 }) // Start with different target for immediate movement
+  const [monsterPos, setMonsterPos] = useState({ x: 50, y: 45 })
+  const [monsterTarget, setMonsterTarget] = useState({ x: 60, y: 50 })
+  const [monsterStartPos, setMonsterStartPos] = useState({ x: 50, y: 45 })
   const [monsterFacingRight, setMonsterFacingRight] = useState(false)
-  const [monsterSpeed, setMonsterSpeed] = useState(0)
-  const [walkCycle, setWalkCycle] = useState(0)
+  const [isPaused, setIsPaused] = useState(false)
 
-  // Monster wandering effect
+  // Use refs for smooth animation values (avoids React state batching/stepping)
+  const walkCycleRef = useRef(0)
+  const speedFactorRef = useRef(0.15)
+
+  // Force re-render for walk animation (triggered by position changes)
+  const [, forceRender] = useState(0)
+
+  // Refs to avoid stale closures in animation loop
+  const targetRef = useRef(monsterTarget)
+  const pausedRef = useRef(isPaused)
+  const posRef = useRef(monsterPos)
+  const startPosRef = useRef(monsterStartPos)
+
+  useEffect(() => { targetRef.current = monsterTarget }, [monsterTarget])
+  useEffect(() => { pausedRef.current = isPaused }, [isPaused])
+  useEffect(() => { posRef.current = monsterPos }, [monsterPos])
+  useEffect(() => { startPosRef.current = monsterStartPos }, [monsterStartPos])
+
+  // Monster wandering effect with requestAnimationFrame for 60 FPS
   useEffect(() => {
     if (currentScreen !== 'game') return
 
-    // Set new random target every 3-5 seconds
-    const targetInterval = setInterval(() => {
-      const newTarget = {
-        x: 20 + Math.random() * 60,
-        y: 30 + Math.random() * 40,
-      }
-      setMonsterTarget(newTarget)
-    }, 3000 + Math.random() * 2000)
+    let animationId: number
+    let lastTime = performance.now()
 
-    // Smoothly move toward target
-    const moveInterval = setInterval(() => {
-      setMonsterPos(prev => {
-        const dx = monsterTarget.x - prev.x
-        const dy = monsterTarget.y - prev.y
+    const gameLoop = (currentTime: number) => {
+      const deltaTime = (currentTime - lastTime) / 16.67 // Normalize to 60fps
+      lastTime = currentTime
+
+      if (!pausedRef.current) {
+        const prev = posRef.current
+        const target = targetRef.current
+        const dx = target.x - prev.x
+        const dy = target.y - prev.y
         const distance = Math.sqrt(dx * dx + dy * dy)
-        const speed = 0.03
 
-        // Update facing direction based on horizontal movement
-        if (Math.abs(dx) > 0.1) {
-          setMonsterFacingRight(dx > 0)
+        // Check if reached target
+        if (distance < 0.5) {
+          // Don't abruptly set to 0 - let the decay handle smooth stop
+          setIsPaused(true)
+
+          // Pause for 1-2 seconds, then pick new target
+          setTimeout(() => {
+            const currentPos = posRef.current
+
+            // Calculate fence bounds with perspective (narrower at top, wider at bottom)
+            // At y=30 (far/top): x range 38-62
+            // At y=60 (near/bottom): x range 25-75
+            const newY = 30 + Math.random() * 30 // y: 30-60
+            const yFactor = (newY - 30) / 30 // 0 at top, 1 at bottom
+            const minX = 38 - yFactor * 13 // 38 at top, 25 at bottom
+            const maxX = 62 + yFactor * 13 // 62 at top, 75 at bottom
+            const newX = minX + Math.random() * (maxX - minX)
+
+            const newTarget = { x: newX, y: newY }
+            const newDx = newTarget.x - currentPos.x
+            if (Math.abs(newDx) > 0.1) {
+              setMonsterFacingRight(newDx > 0)
+            }
+            setMonsterStartPos({ ...currentPos }) // Save start position for acceleration
+            setMonsterTarget(newTarget)
+            setIsPaused(false)
+          }, 1000 + Math.random() * 1000)
+        } else {
+          // Calculate distance traveled from start (for acceleration)
+          const startPos = startPosRef.current
+          const distFromStart = Math.sqrt(
+            Math.pow(prev.x - startPos.x, 2) + Math.pow(prev.y - startPos.y, 2)
+          )
+
+          // Acceleration easing - smooth ramp up at start (starts at 15%, ramps to 100%)
+          const accelDistance = 8
+          const accelFactor = distFromStart > accelDistance
+            ? 1.0
+            : 0.15 + 0.85 * Math.pow(distFromStart / accelDistance, 0.5)
+
+          // Deceleration easing - smooth slow down at end
+          const decelDistance = 10
+          const decelFactor = distance > decelDistance
+            ? 1.0
+            : Math.pow(distance / decelDistance, 0.5) // Smooth deceleration curve
+
+          // Combine both: multiply for smooth accel AND decel
+          const speedFactor = accelFactor * decelFactor
+
+          // Movement speed with combined easing
+          const baseSpeed = 0.12 * deltaTime
+          const currentSpeed = baseSpeed * speedFactor
+
+          // Normalize direction and apply speed
+          const dirX = dx / distance
+          const dirY = dy / distance
+
+          if (Math.abs(dx) > 0.1) {
+            setMonsterFacingRight(dx > 0)
+          }
+
+          // Update refs for smooth animation (no state batching delays)
+          speedFactorRef.current = speedFactor
+          walkCycleRef.current = (walkCycleRef.current + 0.8 * deltaTime * speedFactor) % 360
+
+          setMonsterPos({
+            x: prev.x + dirX * currentSpeed,
+            y: prev.y + dirY * currentSpeed,
+          })
+
+          // Trigger re-render for walk animation
+          forceRender(f => f + 1)
         }
+      } else {
+        // When paused, smoothly decay speed and walk cycle to zero
+        speedFactorRef.current = speedFactorRef.current * 0.92
+        walkCycleRef.current = (walkCycleRef.current + 0.8 * deltaTime * speedFactorRef.current) % 360
 
-        // Update speed for walk animation
-        setMonsterSpeed(distance * speed)
-
-        return {
-          x: prev.x + dx * speed,
-          y: prev.y + dy * speed,
+        // Keep rendering while animation fades out
+        if (speedFactorRef.current > 0.005) {
+          forceRender(f => f + 1)
+        } else {
+          speedFactorRef.current = 0 // Fully stopped
         }
-      })
-    }, 50)
+      }
 
-    // Walk cycle animation
-    const walkInterval = setInterval(() => {
-      setWalkCycle(prev => (prev + 1) % 360)
-    }, 50)
+      animationId = requestAnimationFrame(gameLoop)
+    }
+
+    animationId = requestAnimationFrame(gameLoop)
 
     return () => {
-      clearInterval(targetInterval)
-      clearInterval(moveInterval)
-      clearInterval(walkInterval)
+      cancelAnimationFrame(animationId)
     }
-  }, [currentScreen, monsterTarget])
+  }, [currentScreen])
 
-  // Calculate walk animation transform
+  // Calculate walk animation transform - uses refs for smooth interpolation
   const getWalkTransform = () => {
-    const walkIntensity = Math.min(monsterSpeed * 3, 0.15) // Cap the effect
-    const squashStretch = Math.sin(walkCycle * 0.3) * walkIntensity
+    const flipX = monsterFacingRight ? -1 : 1
+
+    // Walk intensity from ref (updates every frame, no state batching)
+    const walkIntensity = Math.min(speedFactorRef.current * 0.12, 0.12)
+
+    if (walkIntensity < 0.001) {
+      return `translate(-50%, -50%) scaleX(${flipX})`
+    }
+
+    const squashStretch = Math.sin(walkCycleRef.current * 0.3) * walkIntensity
     const scaleX = 1 + squashStretch
     const scaleY = 1 - squashStretch * 0.5
-    const flipX = monsterFacingRight ? -1 : 1
     return `translate(-50%, -50%) scaleX(${scaleX * flipX}) scaleY(${scaleY})`
   }
 
@@ -129,6 +220,22 @@ function App() {
           Back
         </button>
 
+        {/* Monster Shadow (ellipse on ground) */}
+        <div
+          style={{
+            position: 'absolute',
+            left: `${monsterPos.x}%`,
+            top: `${monsterPos.y + 5.5}%`,
+            transform: 'translate(-50%, 0)',
+            width: '80px',
+            height: '20px',
+            borderRadius: '50%',
+            background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.2) 50%, transparent 70%)',
+            pointerEvents: 'none',
+            filter: 'blur(3px)',
+          }}
+        />
+
         {/* Monster */}
         <img
           src="/monster.png"
@@ -141,7 +248,6 @@ function App() {
             width: '120px',
             height: 'auto',
             pointerEvents: 'none',
-            filter: 'drop-shadow(2px 4px 6px rgba(0,0,0,0.4))',
           }}
         />
 
