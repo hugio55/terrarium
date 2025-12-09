@@ -351,26 +351,38 @@ export function Admin({ onClose }: { onClose: () => void }) {
         if (creature.isDirty) {
           console.log('[💾SAVE] Saving creature:', creature.name, 'imageId:', creature.imageId)
           if (creature.isNew) {
-            const result = await createCreature({
+            // Build create object, only including defined values
+            const createData: Record<string, unknown> = {
               name: creature.name,
-              biomeId: creature.biomeId,
               goldValue: creature.goldValue,
               goldPerMinute: creature.goldPerMinute,
               rarity: creature.rarity,
-              imageId: creature.imageId,
-              // Don't save imageUrl - the list query will fetch the real URL from storage
-            })
+            }
+            if (creature.biomeId !== undefined) {
+              createData.biomeId = creature.biomeId
+            }
+            if (creature.imageId !== undefined) {
+              createData.imageId = creature.imageId
+            }
+            const result = await createCreature(createData as any)
             console.log('[💾SAVE] Created creature with id:', result)
           } else if (creature._id) {
-            await updateCreature({
+            // Build update object, only including defined values
+            const updateData: Record<string, unknown> = {
               id: creature._id,
               name: creature.name,
-              biomeId: creature.biomeId,
               goldValue: creature.goldValue,
               goldPerMinute: creature.goldPerMinute,
               rarity: creature.rarity,
-              imageId: creature.imageId,
-            })
+            }
+            // Only include optional fields if they have values
+            if (creature.biomeId !== undefined) {
+              updateData.biomeId = creature.biomeId
+            }
+            if (creature.imageId !== undefined) {
+              updateData.imageId = creature.imageId
+            }
+            await updateCreature(updateData as any)
           }
         }
       }
@@ -399,23 +411,39 @@ export function Admin({ onClose }: { onClose: () => void }) {
       for (const decoration of decorations) {
         if (decoration.isDirty) {
           if (decoration.isNew) {
-            await createDecoration({
+            // Build create object, only including defined values
+            const createData: Record<string, unknown> = {
               name: decoration.name,
-              biomeId: decoration.biomeId,
               cost: decoration.cost,
-              description: decoration.description,
-              imageId: decoration.imageId,
-              // Don't save imageUrl - the list query will fetch the real URL from storage
-            })
+            }
+            if (decoration.biomeId !== undefined) {
+              createData.biomeId = decoration.biomeId
+            }
+            if (decoration.description !== undefined) {
+              createData.description = decoration.description
+            }
+            if (decoration.imageId !== undefined) {
+              createData.imageId = decoration.imageId
+            }
+            await createDecoration(createData as any)
           } else if (decoration._id) {
-            await updateDecoration({
+            // Build update object, only including defined values
+            const updateData: Record<string, unknown> = {
               id: decoration._id,
               name: decoration.name,
-              biomeId: decoration.biomeId,
               cost: decoration.cost,
-              description: decoration.description,
-              imageId: decoration.imageId,
-            })
+            }
+            // Only include optional fields if they have values
+            if (decoration.biomeId !== undefined) {
+              updateData.biomeId = decoration.biomeId
+            }
+            if (decoration.description !== undefined) {
+              updateData.description = decoration.description
+            }
+            if (decoration.imageId !== undefined) {
+              updateData.imageId = decoration.imageId
+            }
+            await updateDecoration(updateData as any)
           }
         }
       }
