@@ -34,6 +34,7 @@ interface CreatureRow {
   rarity: Rarity
   imageId?: Id<'_storage'>
   imageUrl?: string
+  chartCode?: string // e.g., "A1N", "K3G", "Z5C"
   isNew?: boolean
   isDirty?: boolean
 }
@@ -96,6 +97,16 @@ const CHART_RARITY_COLORS: Record<string, { bg: string; border: string }> = {
   unique: { bg: '#4ade80', border: '#2d8b4a' },      // Green
 }
 
+// Generate all possible chart codes
+const ALL_CHART_CODES: string[] = []
+for (const variant of ['N', 'G', 'C']) {
+  for (const col of CHART_COLUMNS) {
+    for (const row of CHART_ROWS) {
+      ALL_CHART_CODES.push(`${col}${row}${variant}`)
+    }
+  }
+}
+
 export function Admin({ onClose }: { onClose: () => void }) {
   const [activeTab, setActiveTab] = useState<TabType>('creatures')
   const [creatures, setCreatures] = useState<CreatureRow[]>([])
@@ -116,6 +127,13 @@ export function Admin({ onClose }: { onClose: () => void }) {
 
   // Chart variant for creature chart tab
   const [chartVariant, setChartVariant] = useState<ChartVariant>('normal')
+
+  // Tooltip state for chart hover
+  const [chartTooltip, setChartTooltip] = useState<{
+    creature: CreatureRow
+    x: number
+    y: number
+  } | null>(null)
 
   // Edit mode tracking - stores IDs of rows being edited
   const [editingCreatures, setEditingCreatures] = useState<Set<string>>(new Set())
@@ -266,6 +284,16 @@ export function Admin({ onClose }: { onClose: () => void }) {
       setSortField(field)
       setSortDirection('asc')
     }
+  }
+
+  // Get creature by chart code
+  const getCreatureByChartCode = (code: string): CreatureRow | undefined => {
+    return creatures.find(c => c.chartCode === code)
+  }
+
+  // Get used chart codes (for showing which are already assigned)
+  const getUsedChartCodes = (): Set<string> => {
+    return new Set(creatures.filter(c => c.chartCode).map(c => c.chartCode!))
   }
 
   const handleAddBiome = () => {
@@ -468,6 +496,9 @@ export function Admin({ onClose }: { onClose: () => void }) {
             if (creature.imageId !== undefined) {
               createData.imageId = creature.imageId
             }
+            if (creature.chartCode !== undefined) {
+              createData.chartCode = creature.chartCode
+            }
             const result = await createCreature(createData as any)
             console.log('[💾SAVE] Created creature with id:', result)
           } else if (creature._id) {
@@ -488,6 +519,9 @@ export function Admin({ onClose }: { onClose: () => void }) {
             }
             if (creature.imageId !== undefined) {
               updateData.imageId = creature.imageId
+            }
+            if (creature.chartCode !== undefined) {
+              updateData.chartCode = creature.chartCode
             }
             await updateCreature(updateData as any)
           }
@@ -1067,6 +1101,7 @@ export function Admin({ onClose }: { onClose: () => void }) {
                 <tr style={{ backgroundColor: '#0f0f1a' }}>
                   <th style={{ padding: '12px', textAlign: 'left', color: '#888', borderBottom: '1px solid #333' }}>Image</th>
                   <th style={{ padding: '12px', textAlign: 'left', color: '#888', borderBottom: '1px solid #333' }}>Name</th>
+                  <th style={{ padding: '12px', textAlign: 'left', color: '#888', borderBottom: '1px solid #333' }}>Chart Code</th>
                   <th style={{ padding: '12px', textAlign: 'left', color: '#888', borderBottom: '1px solid #333' }}>Group</th>
                   <th style={{ padding: '12px', textAlign: 'left', color: '#888', borderBottom: '1px solid #333' }}>Biome</th>
                   <th style={{ padding: '12px', textAlign: 'left', color: '#888', borderBottom: '1px solid #333' }}>Gold Value</th>
@@ -1168,6 +1203,49 @@ export function Admin({ onClose }: { onClose: () => void }) {
                           />
                         ) : (
                           <span style={{ color: '#fff', fontWeight: '500' }}>{creature.name || '—'}</span>
+                        )}
+                      </td>
+
+                      {/* Chart Code Column */}
+                      <td style={{ padding: '8px', borderBottom: '1px solid #333' }}>
+                        {isEditing ? (
+                          <select
+                            value={creature.chartCode || ''}
+                            onChange={(e) => handleCreatureChange(creatures.indexOf(creature), 'chartCode', e.target.value || undefined)}
+                            style={{
+                              width: '100%',
+                              padding: '8px',
+                              backgroundColor: '#0f0f1a',
+                              border: '1px solid #333',
+                              borderRadius: '4px',
+                              color: creature.chartCode ? '#4ade80' : '#fff',
+                              fontSize: '12px',
+                            }}
+                          >
+                            <option value="">-- None --</option>
+                            {ALL_CHART_CODES.map(code => {
+                              const usedCodes = getUsedChartCodes()
+                              const isUsed = usedCodes.has(code) && creature.chartCode !== code
+                              return (
+                                <option
+                                  key={code}
+                                  value={code}
+                                  disabled={isUsed}
+                                  style={{ color: isUsed ? '#666' : '#fff' }}
+                                >
+                                  {code} {isUsed ? '(used)' : ''}
+                                </option>
+                              )
+                            })}
+                          </select>
+                        ) : (
+                          <span style={{
+                            color: creature.chartCode ? '#4ade80' : '#666',
+                            fontFamily: 'monospace',
+                            fontWeight: creature.chartCode ? 'bold' : 'normal',
+                          }}>
+                            {creature.chartCode || '—'}
+                          </span>
                         )}
                       </td>
 
@@ -1651,6 +1729,7 @@ export function Admin({ onClose }: { onClose: () => void }) {
                     const colors = CHART_RARITY_COLORS[rarity]
                     const variantSuffix = chartVariant === 'normal' ? 'N' : chartVariant === 'gold' ? 'G' : 'C'
                     const cellCode = `${col}${row}${variantSuffix}`
+                    const assignedCreature = getCreatureByChartCode(cellCode)
 
                     return (
                       <div
@@ -1667,30 +1746,129 @@ export function Admin({ onClose }: { onClose: () => void }) {
                           margin: '1px',
                           cursor: 'pointer',
                           transition: 'transform 0.1s, box-shadow 0.1s',
+                          position: 'relative',
+                          overflow: 'hidden',
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.transform = 'scale(1.05)'
-                          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)'
+                          e.currentTarget.style.transform = 'scale(1.1)'
+                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.4)'
+                          e.currentTarget.style.zIndex = '10'
+                          if (assignedCreature) {
+                            const rect = e.currentTarget.getBoundingClientRect()
+                            setChartTooltip({
+                              creature: assignedCreature,
+                              x: rect.left + rect.width / 2,
+                              y: rect.top - 10,
+                            })
+                          }
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.transform = 'scale(1)'
                           e.currentTarget.style.boxShadow = 'none'
+                          e.currentTarget.style.zIndex = '1'
+                          setChartTooltip(null)
                         }}
                       >
-                        <span style={{
-                          color: '#1a1a2e',
-                          fontSize: '10px',
-                          fontWeight: 'bold',
-                          textShadow: '0 1px 1px rgba(255,255,255,0.3)',
-                        }}>
-                          {cellCode}
-                        </span>
+                        {assignedCreature?.imageUrl ? (
+                          <img
+                            src={assignedCreature.imageUrl}
+                            alt={assignedCreature.name}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                            }}
+                          />
+                        ) : (
+                          <span style={{
+                            color: '#1a1a2e',
+                            fontSize: '9px',
+                            fontWeight: 'bold',
+                            textShadow: '0 1px 1px rgba(255,255,255,0.3)',
+                            opacity: assignedCreature ? 1 : 0.6,
+                          }}>
+                            {cellCode}
+                          </span>
+                        )}
                       </div>
                     )
                   })}
                 </div>
               ))}
             </div>
+
+            {/* Tooltip */}
+            {chartTooltip && (
+              <div
+                style={{
+                  position: 'fixed',
+                  left: chartTooltip.x,
+                  top: chartTooltip.y,
+                  transform: 'translate(-50%, -100%)',
+                  backgroundColor: '#1a1a2e',
+                  border: '2px solid #4ade80',
+                  borderRadius: '8px',
+                  padding: '12px',
+                  zIndex: 1000,
+                  pointerEvents: 'none',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+                  minWidth: '180px',
+                }}
+              >
+                {/* Arrow */}
+                <div style={{
+                  position: 'absolute',
+                  bottom: '-8px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: 0,
+                  height: 0,
+                  borderLeft: '8px solid transparent',
+                  borderRight: '8px solid transparent',
+                  borderTop: '8px solid #4ade80',
+                }} />
+
+                {/* Content */}
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                  {chartTooltip.creature.imageUrl && (
+                    <img
+                      src={chartTooltip.creature.imageUrl}
+                      alt={chartTooltip.creature.name}
+                      style={{
+                        width: '48px',
+                        height: '48px',
+                        objectFit: 'cover',
+                        borderRadius: '4px',
+                        border: '1px solid #333',
+                      }}
+                    />
+                  )}
+                  <div>
+                    <div style={{ color: '#fff', fontWeight: 'bold', fontSize: '14px', marginBottom: '4px' }}>
+                      {chartTooltip.creature.name || 'Unnamed'}
+                    </div>
+                    <div style={{ color: '#888', fontSize: '11px', marginBottom: '2px' }}>
+                      Code: <span style={{ color: '#4ade80', fontFamily: 'monospace' }}>{chartTooltip.creature.chartCode}</span>
+                    </div>
+                    <div style={{
+                      color: RARITY_COLORS[chartTooltip.creature.rarity],
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      textTransform: 'capitalize',
+                      marginBottom: '4px',
+                    }}>
+                      {chartTooltip.creature.rarity}
+                    </div>
+                    <div style={{ color: '#ffd700', fontSize: '11px' }}>
+                      💰 {chartTooltip.creature.goldValue} gold
+                    </div>
+                    <div style={{ color: '#ffd700', fontSize: '11px' }}>
+                      ⏱️ {chartTooltip.creature.goldPerMinute}/min
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Info */}
             <p style={{ color: '#666', fontSize: '12px', marginTop: '16px' }}>

@@ -30,6 +30,7 @@ export default defineSchema({
     ),
     imageId: v.optional(v.id("_storage")),
     imageUrl: v.optional(v.string()),
+    chartCode: v.optional(v.string()), // e.g., "A1N", "K3G", "Z5C"
     order: v.number(),
   }),
 

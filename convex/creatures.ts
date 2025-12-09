@@ -42,6 +42,7 @@ export const create = mutation({
     ),
     imageId: v.optional(v.id("_storage")),
     imageUrl: v.optional(v.string()),
+    chartCode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db.query("creatures").collect();
@@ -73,6 +74,7 @@ export const update = mutation({
     ),
     imageId: v.optional(v.id("_storage")),
     imageUrl: v.optional(v.string()),
+    chartCode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { id, ...updates } = args;
