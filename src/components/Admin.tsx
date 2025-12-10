@@ -1853,7 +1853,7 @@ export function Admin({ onClose }: { onClose: () => void }) {
               {/* Column Headers */}
               <div style={{
                 display: 'flex',
-                marginLeft: '32px',
+                marginLeft: '132px', // 100px biome name + 28px row number + 4px margin
                 marginBottom: '4px',
               }}>
                 {CHART_COLUMNS.map((col) => (
@@ -1873,9 +1873,28 @@ export function Admin({ onClose }: { onClose: () => void }) {
               </div>
 
               {/* Grid Rows */}
-              {CHART_ROWS.map((row) => (
+              {CHART_ROWS.map((row) => {
+                // Find biome assigned to this row
+                const rowBiome = biomes.find(b => b.rowNumber === row)
+
+                return (
                 <div key={row} style={{ display: 'flex', alignItems: 'center', marginBottom: '2px' }}>
-                  {/* Row Label */}
+                  {/* Biome Name Label */}
+                  <div style={{
+                    width: '100px',
+                    minWidth: '100px',
+                    textAlign: 'right',
+                    paddingRight: '8px',
+                    color: rowBiome?.color || '#444',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {rowBiome?.name || ''}
+                  </div>
+                  {/* Row Number Label */}
                   <div style={{
                     width: '28px',
                     minWidth: '28px',
@@ -1971,7 +1990,7 @@ export function Admin({ onClose }: { onClose: () => void }) {
                     )
                   })}
                 </div>
-              ))}
+              )})}
             </div>
 
             {/* Tooltip */}
@@ -2036,15 +2055,26 @@ export function Admin({ onClose }: { onClose: () => void }) {
                     <div style={{ color: '#888', fontSize: '11px', marginBottom: '2px' }}>
                       Code: <span style={{ color: '#4ade80', fontFamily: 'monospace' }}>{chartTooltip.creature.chartCode}</span>
                     </div>
-                    <div style={{
-                      color: RARITY_COLORS[chartTooltip.creature.rarity],
-                      fontSize: '11px',
-                      fontWeight: 'bold',
-                      textTransform: 'capitalize',
-                      marginBottom: '4px',
-                    }}>
-                      {chartTooltip.creature.rarity}
-                    </div>
+                    {(() => {
+                      // Derive rarity from chart code column, not stored rarity
+                      const derivedRarity = chartTooltip.creature.chartCode
+                        ? getColumnRarity(chartTooltip.creature.chartCode.charAt(0))
+                        : chartTooltip.creature.rarity
+                      const rarityColor = derivedRarity === 'unique'
+                        ? '#4ade80'
+                        : RARITY_COLORS[derivedRarity as Rarity] || '#888'
+                      return (
+                        <div style={{
+                          color: rarityColor,
+                          fontSize: '11px',
+                          fontWeight: 'bold',
+                          textTransform: 'capitalize',
+                          marginBottom: '4px',
+                        }}>
+                          {derivedRarity}
+                        </div>
+                      )
+                    })()}
                     <div style={{ color: '#ffd700', fontSize: '11px' }}>
                       💰 {chartTooltip.creature.goldValue} gold
                     </div>
