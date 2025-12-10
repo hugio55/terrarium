@@ -52,6 +52,7 @@ interface BiomeRow {
   name: string
   description?: string
   color?: string
+  rowNumber?: number // 1-5, corresponds to chart row
   isNew?: boolean
   isDirty?: boolean
 }
@@ -563,6 +564,7 @@ export function Admin({ onClose }: { onClose: () => void }) {
               name: biome.name,
               description: biome.description,
               color: biome.color,
+              rowNumber: biome.rowNumber,
             })
           } else if (biome._id) {
             await updateBiome({
@@ -570,6 +572,7 @@ export function Admin({ onClose }: { onClose: () => void }) {
               name: biome.name,
               description: biome.description,
               color: biome.color,
+              rowNumber: biome.rowNumber,
             })
           }
         }
@@ -1020,6 +1023,7 @@ export function Admin({ onClose }: { onClose: () => void }) {
                   <th style={{ padding: '12px', textAlign: 'left', color: '#888', borderBottom: '1px solid #333' }}>Name</th>
                   <th style={{ padding: '12px', textAlign: 'left', color: '#888', borderBottom: '1px solid #333' }}>Description</th>
                   <th style={{ padding: '12px', textAlign: 'left', color: '#888', borderBottom: '1px solid #333' }}>Color</th>
+                  <th style={{ padding: '12px', textAlign: 'center', color: '#888', borderBottom: '1px solid #333', width: '80px' }}>Row #</th>
                   <th style={{ padding: '12px', textAlign: 'center', color: '#888', borderBottom: '1px solid #333', width: '140px' }}>Actions</th>
                 </tr>
               </thead>
@@ -1098,6 +1102,39 @@ export function Admin({ onClose }: { onClose: () => void }) {
                             }} />
                             <span style={{ color: '#888', fontSize: '12px' }}>{biome.color}</span>
                           </div>
+                        )}
+                      </td>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #333', textAlign: 'center' }}>
+                        {isEditing ? (
+                          <select
+                            value={biome.rowNumber || ''}
+                            onChange={(e) => handleBiomeChange(index, 'rowNumber', e.target.value ? parseInt(e.target.value) : undefined)}
+                            style={{
+                              padding: '8px',
+                              backgroundColor: '#0f0f1a',
+                              border: '1px solid #333',
+                              borderRadius: '4px',
+                              color: biome.rowNumber ? '#4ade80' : '#fff',
+                              fontSize: '14px',
+                              width: '60px',
+                              textAlign: 'center',
+                            }}
+                          >
+                            <option value="">—</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                          </select>
+                        ) : (
+                          <span style={{
+                            color: biome.rowNumber ? '#4ade80' : '#666',
+                            fontWeight: biome.rowNumber ? 'bold' : 'normal',
+                            fontSize: '16px',
+                          }}>
+                            {biome.rowNumber || '—'}
+                          </span>
                         )}
                       </td>
                       <td style={{ padding: '8px', borderBottom: '1px solid #333', textAlign: 'center' }}>

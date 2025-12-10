@@ -6,6 +6,7 @@ export default defineSchema({
     name: v.string(),
     description: v.optional(v.string()),
     color: v.optional(v.string()),
+    rowNumber: v.optional(v.number()), // 1-5, corresponds to chart row
     order: v.number(),
   }),
 

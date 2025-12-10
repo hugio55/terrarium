@@ -13,6 +13,7 @@ export const create = mutation({
     name: v.string(),
     description: v.optional(v.string()),
     color: v.optional(v.string()),
+    rowNumber: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db.query("biomes").collect();
@@ -31,6 +32,7 @@ export const update = mutation({
     name: v.optional(v.string()),
     description: v.optional(v.string()),
     color: v.optional(v.string()),
+    rowNumber: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const { id, ...updates } = args;
